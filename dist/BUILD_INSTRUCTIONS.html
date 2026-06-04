@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenCL-Benchmark 跨平台編譯說明</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #2980b9;
+            margin-top: 30px;
+        }
+        h3 {
+            color: #34495e;
+        }
+        code {
+            background-color: #ecf0f1;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        }
+        pre {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #bdc3c7;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #ecf0f1;
+        }
+        .success {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .warning {
+            color: #e67e22;
+            font-weight: bold;
+        }
+        .info-box {
+            background-color: #d5f4e6;
+            border-left: 4px solid #27ae60;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .warning-box {
+            background-color: #fdebd0;
+            border-left: 4px solid #e67e22;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .platform-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 OpenCL-Benchmark 跨平台編譯說明</h1>
+
+    <h2>📋 概述</h2>
+    <p>本項目已成功編譯生成可在以下平台運行的測試程序：</p>
+    <ul>
+        <li><strong>Linux x86_64</strong> - 適用於標準Linux桌面/服務器系統</li>
+        <li><strong>Linux ARM32</strong> - 適用於ARM 32位Linux設備（如樹莓派等）</li>
+        <li><strong>Linux ARM64</strong> - 適用於ARM 64位Linux設備</li>
+        <li><strong>Android ARM32</strong> - 適用於Android ARM 32位設備</li>
+        <li><strong>Android ARM64</strong> - 適用於Android ARM 64位設備</li>
+    </ul>
+
+    <h2>🔧 編譯步驟</h2>
+
+    <h3>1. 環境準備</h3>
+    <p>在Ubuntu/Debian系統上安裝交叉編譯工具鏈：</p>
+    <pre><code># 安裝標準編譯工具
+sudo apt-get update
+sudo apt-get install -y g++ make
+
+# 安裝ARM交叉編譯工具鏈
+sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu</code></pre>
+
+    <h3>2. 執行編譯</h3>
+    <pre><code># 克隆項目
+git clone https://github.com/kukakong/OpenCL-Benchmark.git
+cd OpenCL-Benchmark
+
+# 執行編譯腳本
+chmod +x build_all.sh
+./build_all.sh</code></pre>
+
+    <h3>3. 編譯輸出</h3>
+    <p>編譯完成後，所有可執行文件將位於 <code>dist/</code> 目錄下：</p>
+    <table>
+        <tr>
+            <th>文件名</th>
+            <th>目標平台</th>
+            <th>說明</th>
+        </tr>
+        <tr>
+            <td><code>OpenCL-Benchmark-linux-x86_64</code></td>
+            <td>Linux x86_64</td>
+            <td>標準Linux 64位系統</td>
+        </tr>
+        <tr>
+            <td><code>OpenCL-Benchmark-linux-arm32</code></td>
+            <td>Linux ARM32</td>
+            <td>Linux ARM 32位系統</td>
+        </tr>
+        <tr>
+            <td><code>OpenCL-Benchmark-linux-arm64</code></td>
+            <td>Linux ARM64</td>
+            <td>Linux ARM 64位系統</td>
+        </tr>
+        <tr>
+            <td><code>OpenCL-Benchmark-android-arm32</code></td>
+            <td>Android ARM32</td>
+            <td>Android ARM 32位設備</td>
+        </tr>
+        <tr>
+            <td><code>OpenCL-Benchmark-android-arm64</code></td>
+            <td>Android ARM64</td>
+            <td>Android ARM 64位設備</td>
+        </tr>
+    </table>
+
+    <h2>📖 使用說明</h2>
+
+    <div class="platform-card">
+        <h3>🐧 Linux 系統使用方法</h3>
+        <p><strong>1. 確認OpenCL驅動已安裝</strong></p>
+        <ul>
+            <li>NVIDIA GPU: 安裝CUDA Toolkit</li>
+            <li>AMD GPU: 安裝ROCm或AMDGPU-PRO驅動</li>
+            <li>Intel GPU: 安裝Intel OpenCL Runtime</li>
+        </ul>
+        <p><strong>2. 運行基準測試</strong></p>
+        <pre><code># 賦予執行權限
+chmod +x dist/OpenCL-Benchmark-linux-x86_64
+
+# 運行測試（測試所有設備）
+./dist/OpenCL-Benchmark-linux-x86_64
+
+# 運行測試（指定設備ID）
+./dist/OpenCL-Benchmark-linux-x86_64 0 1</code></pre>
+    </div>
+
+    <div class="platform-card">
+        <h3>📱 Android 系統使用方法</h3>
+        <p><strong>1. 將可執行文件推送到Android設備</strong></p>
+        <pre><code># 使用adb推送
+adb push dist/OpenCL-Benchmark-android-arm64 /data/local/tmp/
+
+# 賦予執行權限
+adb shell chmod +x /data/local/tmp/OpenCL-Benchmark-android-arm64
+
+# 運行測試
+adb shell /data/local/tmp/OpenCL-Benchmark-android-arm64</code></pre>
+        <div class="warning-box">
+            <strong>⚠️ 注意事項：</strong>
+            <ul>
+                <li>Android設備需要支持OpenCL</li>
+                <li>需要root權限或可執行權限</li>
+                <li>部分設備可能需要安裝OpenCL驅動</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="platform-card">
+        <h3>🤖 ARM Linux 系統使用方法</h3>
+        <p><strong>1. 將可執行文件複製到目標設備</strong></p>
+        <pre><code># 使用scp複製
+scp dist/OpenCL-Benchmark-linux-arm64 user@arm-device:/home/user/
+
+# 賦予執行權限
+ssh user@arm-device "chmod +x /home/user/OpenCL-Benchmark-linux-arm64"
+
+# 運行測試
+ssh user@arm-device "/home/user/OpenCL-Benchmark-linux-arm64"</code></pre>
+    </div>
+
+    <h2>📊 測試項目說明</h2>
+    <p>本基準測試程序會測量以下性能指標：</p>
+
+    <h3>計算性能</h3>
+    <ul>
+        <li><strong>FP64</strong> (double, fma) - 64位浮點計算性能</li>
+        <li><strong>FP32</strong> (float, fma) - 32位浮點計算性能</li>
+        <li><strong>FP16</strong> (half2, fma) - 16位浮點計算性能</li>
+        <li><strong>INT64</strong> (long, a*b+c) - 64位整數計算性能</li>
+        <li><strong>INT32</strong> (int, a*b+c) - 32位整數計算性能</li>
+        <li><strong>INT16</strong> (short2, a*b+c) - 16位整數計算性能</li>
+        <li><strong>INT8</strong> (char4, dp4a) - 8位整數計算性能</li>
+    </ul>
+
+    <h3>內存帶寬</h3>
+    <ul>
+        <li>合併讀取帶寬 (coalesced read)</li>
+        <li>合併寫入帶寬 (coalesced write)</li>
+        <li>非對齊讀取帶寬 (misaligned read)</li>
+        <li>非對齊寫入帶寬 (misaligned write)</li>
+    </ul>
+
+    <h3>PCIe帶寬（僅GPU）</h3>
+    <ul>
+        <li>發送帶寬 (send)</li>
+        <li>接收帶寬 (receive)</li>
+        <li>雙向帶寬 (bidirectional)</li>
+    </ul>
+
+    <h2>🔍 故障排除</h2>
+
+    <h3>常見問題</h3>
+
+    <div class="warning-box">
+        <strong>問題1: 找不到OpenCL庫</strong>
+        <pre><code>error while loading shared libraries: libOpenCL.so.1: cannot open shared object file</code></pre>
+        <strong>解決方法：</strong>安裝OpenCL運行時庫
+        <pre><code>sudo apt-get install ocl-icd-libopencl1</code></pre>
+    </div>
+
+    <div class="warning-box">
+        <strong>問題2: 沒有可用的OpenCL設備</strong>
+        <pre><code>Error: No OpenCL devices found</code></pre>
+        <strong>解決方法：</strong>確保已安裝GPU驅動和OpenCL運行時
+    </div>
+
+    <div class="warning-box">
+        <strong>問題3: 權限不足（Android）</strong>
+        <pre><code>Permission denied</code></pre>
+        <strong>解決方法：</strong>確保文件有執行權限，或使用root權限
+    </div>
+
+    <h2>⚙️ 編譯選項說明</h2>
+
+    <h3>編譯腳本參數</h3>
+    <p><code>build_all.sh</code> 腳本使用以下編譯選項：</p>
+    <ul>
+        <li><code>-std=c++17</code> - 使用C++17標準</li>
+        <li><code>-O3</code> - 最高優化級別</li>
+        <li><code>-pthread</code> - 啟用多線程支持</li>
+        <li><code>-static-libgcc -static-libstdc++</code> - 靜態鏈接C++運行時（ARM交叉編譯）</li>
+    </ul>
+
+    <h3>交叉編譯說明</h3>
+    <p>對於ARM平台的交叉編譯，我們使用了OpenCL stub庫來解決鏈接問題：</p>
+    <ul>
+        <li>編譯時使用stub函數佔位</li>
+        <li>運行時從系統的OpenCL庫加載實際函數</li>
+    </ul>
+
+    <h2>ℹ️ 版本信息</h2>
+    <table>
+        <tr>
+            <th>項目</th>
+            <th>值</th>
+        </tr>
+        <tr>
+            <td>編譯日期</td>
+            <td>2026-06-04</td>
+        </tr>
+        <tr>
+            <td>編譯器版本</td>
+            <td>GCC 13.3.0</td>
+        </tr>
+        <tr>
+            <td>C++標準</td>
+            <td>C++17</td>
+        </tr>
+        <tr>
+            <td>目標平台</td>
+            <td>Linux x86_64, Linux ARM32/ARM64, Android ARM32/ARM64</td>
+        </tr>
+    </table>
+
+    <div class="info-box">
+        <strong>📝 許可證：</strong> 本項目遵循原OpenCL-Benchmark項目的許可證。
+    </div>
+
+    <hr>
+    <p style="text-align: center; color: #7f8c8d;">
+        Generated on 2026-06-04 | OpenCL-Benchmark Cross-Platform Build
+    </p>
+</body>
+</html>

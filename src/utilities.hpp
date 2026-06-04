@@ -25,7 +25,12 @@ typedef unsigned char uchar;
 typedef unsigned short ushort;
 typedef unsigned int uint;
 typedef int64_t slong;
+// Use system-defined ulong if available, otherwise define it
+#if defined(__linux__) && defined(__GNUC__)
+// ulong is already defined in sys/types.h on Linux
+#else
 typedef uint64_t ulong;
+#endif
 #define pif 3.1415927f
 #define pi 3.141592653589793
 #define min_char ((char)-128)

@@ -25,10 +25,14 @@ typedef unsigned char uchar;
 typedef unsigned short ushort;
 typedef unsigned int uint;
 typedef int64_t slong;
-// Use system-defined ulong if available, otherwise define it
-#if defined(__linux__) && defined(__GNUC__)
-// ulong is already defined in sys/types.h on Linux
+// Handle ulong typedef carefully to avoid conflicts
+// On Linux with GCC, ulong is defined in sys/types.h
+// On Android NDK, we need to define it ourselves
+#ifndef __ANDROID__
+// For non-Android (Linux GCC), ulong is already defined in sys/types.h
+// Don't redefine it
 #else
+// For Android NDK, define ulong ourselves
 typedef uint64_t ulong;
 #endif
 #define pif 3.1415927f

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenCL-Benchmark Android 故障排除指南</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.7;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+            color: #333;
+        }
+        h1 { color: #c0392b; border-bottom: 4px solid #e74c3c; padding-bottom: 15px; }
+        h2 { color: #2980b9; margin-top: 35px; border-left: 4px solid #3498db; padding-left: 10px; }
+        h3 { color: #34495e; margin-top: 25px; }
+        code { background: #e9ecef; padding: 2px 8px; border-radius: 4px; font-family: monospace; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 18px; border-radius: 8px; overflow-x: auto; }
+        pre code { background: transparent; padding: 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; background: white; }
+        th, td { border: 1px solid #dee2e6; padding: 12px; text-align: left; }
+        th { background: #3498db; color: white; }
+        tr:nth-child(even) { background: #f8f9fa; }
+        .container { background: white; border-radius: 10px; padding: 25px; margin: 20px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .error-box { background: #fdecea; border-left: 5px solid #e74c3c; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+        .success-box { background: #d4edda; border-left: 5px solid #28a745; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+        .warning-box { background: #fff3cd; border-left: 5px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+        .info-box { background: #d1ecf1; border-left: 5px solid #17a2b8; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin: 20px 0; }
+        .card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; }
+        .card h4 { margin-top: 0; color: #3498db; }
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 15px; font-size: 0.85em; margin: 2px; }
+        .badge-danger { background: #e74c3c; color: white; }
+        .badge-success { background: #28a745; color: white; }
+        .badge-warning { background: #ffc107; color: #333; }
+        .badge-info { background: #17a2b8; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 OpenCL-Benchmark Android 故障排除指南</h1>
+        
+        <div class="error-box">
+            <strong>常见错误：</strong>
+            <pre><code>Error: No OpenCL devices are available.</code></pre>
+            <p><strong>原因：</strong>程序无法找到 OpenCL 库文件（通常是 Mali GPU 库）。</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>✅ 解决方案</h2>
+
+        <div class="card-grid">
+            <div class="card">
+                <h4>方案一：智能启动脚本 <span class="badge badge-success">推荐</span></h4>
+                <pre><code># 推送文件
+adb push OpenCL-Benchmark-android-arm64 /data/local/tmp/
+adb push run-android-auto.sh /data/local/tmp/
+
+# 赋予权限
+adb shell chmod +x /data/local/tmp/*
+
+# 运行
+adb shell /data/local/tmp/run-android-auto.sh</code></pre>
+            </div>
+
+            <div class="card">
+                <h4>方案二：手动设置库路径</h4>
+                <pre><code># 进入 shell
+adb shell
+
+# ARM64 设备：
+export LD_LIBRARY_PATH=/vendor/lib64:/vendor/lib64/egl:/system/lib64:$LD_LIBRARY_PATH
+
+# ARM32 设备：
+export LD_LIBRARY_PATH=/vendor/lib:/vendor/lib/egl:/system/lib:$LD_LIBRARY_PATH
+
+# 运行
+./OpenCL-Benchmark-android-arm64</code></pre>
+            </div>
+
+            <div class="card">
+                <h4>方案三：预加载 Mali 库</h4>
+                <pre><code># 查找 Mali 库
+find /vendor -name "libGLES_mali.so"
+
+# 预加载并运行
+export LD_PRELOAD=/vendor/lib64/egl/libGLES_mali.so
+export LD_LIBRARY_PATH=/vendor/lib64:/vendor/lib64/egl
+./OpenCL-Benchmark-android-arm64</code></pre>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📁 常见库位置</h2>
+
+        <h3>ARM64 设备</h3>
+        <table>
+            <tr><th>路径</th><th>说明</th></tr>
+            <tr><td><code>/vendor/lib64/egl/libGLES_mali.so</code></td><td>最常见</td></tr>
+            <tr><td><code>/vendor/lib64/libmali.so</code></td><td>备选位置</td></tr>
+            <tr><td><code>/vendor/lib64/libMali.so</code></td><td>备选位置</td></tr>
+        </table>
+
+        <h3>ARM32 设备</h3>
+        <table>
+            <tr><th>路径</th><th>说明</th></tr>
+            <tr><td><code>/vendor/lib/egl/libGLES_mali.so</code></td><td>最常见</td></tr>
+            <tr><td><code>/vendor/lib/libmali.so</code></td><td>备选位置</td></tr>
+            <tr><td><code>/vendor/lib/libMali.so</code></td><td>备选位置</td></tr>
+        </table>
+    </div>
+
+    <div class="container">
+        <h2>🔍 验证步骤</h2>
+
+        <h3>1. 检查设备是否有 Mali GPU</h3>
+        <pre><code>adb shell cat /proc/cpuinfo | grep -i hardware
+adb shell getprop ro.hardware</code></pre>
+
+        <h3>2. 查找 GPU 库文件</h3>
+        <pre><code>adb shell find /vendor -name "*mali*" 2>/dev/null
+adb shell find /system -name "*OpenCL*" 2>/dev/null
+adb shell ls -la /vendor/lib*/egl/</code></pre>
+
+        <h3>3. 检查库依赖</h3>
+        <pre><code>adb shell
+cd /data/local/tmp
+readelf -d OpenCL-Benchmark-android-arm64 | grep NEEDED</code></pre>
+    </div>
+
+    <div class="container">
+        <h2>🔗 创建符号链接（需要 root）</h2>
+
+        <div class="warning-box">
+            <strong>注意：</strong>需要 root 权限
+        </div>
+
+        <pre><code># 获取 root
+adb root
+adb remount
+
+# 创建符号链接
+adb shell ln -s /vendor/lib64/egl/libGLES_mali.so /vendor/lib64/libOpenCL.so
+adb shell ln -s /vendor/lib64/egl/libGLES_mali.so /vendor/lib64/libOpenCL.so.1</code></pre>
+    </div>
+
+    <div class="container">
+        <h2>📋 完整示例</h2>
+
+        <h3>示例 1：标准 Android 设备</h3>
+        <pre><code># 推送文件
+adb push OpenCL-Benchmark-android-arm64 /data/local/tmp/
+adb push run-android-auto.sh /data/local/tmp/
+
+# 运行
+adb shell
+cd /data/local/tmp
+chmod +x *
+./run-android-auto.sh</code></pre>
+
+        <h3>示例 2：需要 root 的设备</h3>
+        <pre><code># 获取 root
+adb root
+adb remount
+
+# 创建库链接
+adb shell ln -sf /vendor/lib64/egl/libGLES_mali.so /system/lib64/libOpenCL.so.1
+
+# 运行
+adb push OpenCL-Benchmark-android-arm64 /data/local/tmp/
+adb shell /data/local/tmp/OpenCL-Benchmark-android-arm64</code></pre>
+
+        <h3>示例 3：使用 su 运行</h3>
+        <pre><code>adb push OpenCL-Benchmark-android-arm64 /data/local/tmp/
+adb shell su -c "chmod +x /data/local/tmp/OpenCL-Benchmark-android-arm64"
+adb shell su -c "export LD_LIBRARY_PATH=/vendor/lib64:/vendor/lib64/egl:\$LD_LIBRARY_PATH && /data/local/tmp/OpenCL-Benchmark-android-arm64"</code></pre>
+    </div>
+
+    <div class="container">
+        <h2>⚠️ 常见问题</h2>
+
+        <div class="error-box">
+            <strong>问题：Permission denied</strong>
+            <pre><code>chmod +x /data/local/tmp/OpenCL-Benchmark-android-arm64</code></pre>
+        </div>
+
+        <div class="error-box">
+            <strong>问题：library not found</strong>
+            <pre><code># 查看缺少的库
+LD_DEBUG=libs ./OpenCL-Benchmark-android-arm64 2>&1 | head -50</code></pre>
+        </div>
+
+        <div class="error-box">
+            <strong>问题：No such file or directory</strong>
+            <p>这通常是动态链接器问题，确保使用正确的架构：</p>
+            <pre><code># 检查设备架构
+adb shell uname -m</code></pre>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📦 文件列表</h2>
+        <table>
+            <tr><th>文件</th><th>说明</th></tr>
+            <tr><td><code>OpenCL-Benchmark-android-arm64</code></td><td>ARM64 可执行文件</td></tr>
+            <tr><td><code>OpenCL-Benchmark-android-arm32</code></td><td>ARM32 可执行文件</td></tr>
+            <tr><td><code>run-android-auto.sh</code></td><td><span class="badge badge-success">推荐</span> 智能启动脚本</td></tr>
+            <tr><td><code>run-android.sh</code></td><td>基礎启动脚本</td></tr>
+        </table>
+    </div>
+
+    <div class="container">
+        <h2>ℹ️ 版本信息</h2>
+        <table>
+            <tr><th>项目</th><th>值</th></tr>
+            <tr><td>编译工具</td><td>Android NDK r21e</td></tr>
+            <tr><td>目标 API</td><td>Android 5.0 (API 21) 及以上</td></tr>
+            <tr><td>支持架构</td><td>ARM32, ARM64</td></tr>
+            <tr><td>GPU 支持</td><td>Mali GPU, 其他 OpenCL 兼容 GPU</td></tr>
+        </table>
+    </div>
+
+    <div style="text-align: center; padding: 20px; color: #6c757d;">
+        <p>Generated on 2026-06-05 | OpenCL-Benchmark Android Troubleshooting Guide</p>
+    </div>
+</body>
+</html>

@@ -521,7 +521,10 @@ int main() {
 
     auto benchmark_kernel = [&](const char* name, int ops_per_iter, int inner_iters) -> double {
         cl_kernel kernel = g_ocl.clCreateKernel(program, name, nullptr);
-        if (!kernel) return 1e30;
+        if (!kernel) {
+            std::cerr << "  Warning: kernel '" << name << "' not found" << std::endl;
+            return 1e30;
+        }
 
         g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buffer);
 
@@ -529,29 +532,36 @@ int main() {
         size_t local_size = 256;
 
         // Warmup
-        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, &local_size, 0, nullptr, nullptr);
+        cl_int err = g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, &local_size, 0, nullptr, nullptr);
+        if (err != CL_SUCCESS) {
+            std::cerr << "  Error: kernel '" << name << "' warmup failed: " << err << std::endl;
+            g_ocl.clReleaseKernel(kernel);
+            return 1e30;
+        }
         g_ocl.clFinish(queue);
 
-        // Benchmark
-        double min_time = 1e30;
+        // Benchmark - run multiple times and sum for better precision
+        auto start = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < N_kernel; i++) {
-            auto start = std::chrono::high_resolution_clock::now();
             g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, &local_size, 0, nullptr, nullptr);
-            g_ocl.clFinish(queue);
-            auto end = std::chrono::high_resolution_clock::now();
-            double time_ms = std::chrono::duration<double, std::milli>(end - start).count();
-            min_time = std::min(min_time, time_ms);
         }
+        g_ocl.clFinish(queue);
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        double total_time_ms = std::chrono::duration<double, std::milli>(end - start).count();
+        double avg_time_ms = total_time_ms / N_kernel;
 
         g_ocl.clReleaseKernel(kernel);
-        return min_time;
+        return avg_time_ms;
     };
 
     // FP64 Compute
     if (has_fp64) {
-        double time = benchmark_kernel("kernel_double", 512, 128);
-        if (time < 1e20) {
-            float tflops = 512.0f * (float)N / (float)time * 1e-12f;
+        double time_ms = benchmark_kernel("kernel_double", 512, 128);
+        if (time_ms < 1e20 && time_ms > 0) {
+            // TFLOPS = ops_per_iter * N / time_seconds / 1e12
+            // time_ms is in milliseconds, so: TFLOPS = ops_per_iter * N / (time_ms/1000) / 1e12
+            float tflops = 512.0f * (float)N / (float)time_ms * 1e-9f;
             std::cout << "| FP64  compute                                          " 
                       << alignr(15, formatFloat(tflops, 3)) << " TFLOPs/s " << fraction(100.0f*tflops/estimated_tflops) << " |" << std::endl;
         }
@@ -561,9 +571,9 @@ int main() {
 
     // FP32 Compute
     {
-        double time = benchmark_kernel("kernel_float", 2048, 512);
-        if (time < 1e20) {
-            float tflops = 2048.0f * (float)N / (float)time * 1e-12f;
+        double time_ms = benchmark_kernel("kernel_float", 2048, 512);
+        if (time_ms < 1e20 && time_ms > 0) {
+            float tflops = 2048.0f * (float)N / (float)time_ms * 1e-9f;
             std::cout << "| FP32  compute                                          " 
                       << alignr(15, formatFloat(tflops, 3)) << " TFLOPs/s " << fraction(100.0f*tflops/estimated_tflops) << " |" << std::endl;
         }
@@ -571,9 +581,9 @@ int main() {
 
     // FP16 Compute
     if (has_fp16) {
-        double time = benchmark_kernel("kernel_half", 4096, 512);
-        if (time < 1e20) {
-            float tflops = 4096.0f * (float)N / (float)time * 1e-12f;
+        double time_ms = benchmark_kernel("kernel_half", 4096, 512);
+        if (time_ms < 1e20 && time_ms > 0) {
+            float tflops = 4096.0f * (float)N / (float)time_ms * 1e-9f;
             std::cout << "| FP16  compute                                          " 
                       << alignr(15, formatFloat(tflops, 3)) << " TFLOPs/s " << fraction(100.0f*tflops/estimated_tflops) << " |" << std::endl;
         }
@@ -583,9 +593,9 @@ int main() {
 
     // INT64 Compute
     {
-        double time = benchmark_kernel("kernel_long", 32, 8);
-        if (time < 1e20) {
-            float tiops = 32.0f * (float)N / (float)time * 1e-12f;
+        double time_ms = benchmark_kernel("kernel_long", 32, 8);
+        if (time_ms < 1e20 && time_ms > 0) {
+            float tiops = 32.0f * (float)N / (float)time_ms * 1e-9f;
             std::cout << "| INT64 compute                                          " 
                       << alignr(15, formatFloat(tiops, 3)) << "  TIOPs/s " << fraction(100.0f*tiops/estimated_tflops) << " |" << std::endl;
         }
@@ -593,9 +603,9 @@ int main() {
 
     // INT32 Compute
     {
-        double time = benchmark_kernel("kernel_int", 2048, 512);
-        if (time < 1e20) {
-            float tiops = 2048.0f * (float)N / (float)time * 1e-12f;
+        double time_ms = benchmark_kernel("kernel_int", 2048, 512);
+        if (time_ms < 1e20 && time_ms > 0) {
+            float tiops = 2048.0f * (float)N / (float)time_ms * 1e-9f;
             std::cout << "| INT32 compute                                          " 
                       << alignr(15, formatFloat(tiops, 3)) << "  TIOPs/s " << fraction(100.0f*tiops/estimated_tflops) << " |" << std::endl;
         }
@@ -603,9 +613,9 @@ int main() {
 
     // INT16 Compute
     {
-        double time = benchmark_kernel("kernel_short", 1024, 128);
-        if (time < 1e20) {
-            float tiops = 1024.0f * (float)N / (float)time * 1e-12f;
+        double time_ms = benchmark_kernel("kernel_short", 1024, 128);
+        if (time_ms < 1e20 && time_ms > 0) {
+            float tiops = 1024.0f * (float)N / (float)time_ms * 1e-9f;
             std::cout << "| INT16 compute                                          " 
                       << alignr(15, formatFloat(tiops, 4)) << "  TIOPs/s " << fraction(100.0f*tiops/estimated_tflops) << " |" << std::endl;
         }
@@ -613,9 +623,9 @@ int main() {
 
     // INT8 Compute
     {
-        double time = benchmark_kernel("kernel_char", 1024, 64);
-        if (time < 1e20) {
-            float tiops = 1024.0f * (float)N / (float)time * 1e-12f;
+        double time_ms = benchmark_kernel("kernel_char", 1024, 64);
+        if (time_ms < 1e20 && time_ms > 0) {
+            float tiops = 1024.0f * (float)N / (float)time_ms * 1e-9f;
             std::cout << "| INT8  compute                                          " 
                       << alignr(15, formatFloat(tiops, 4)) << "  TIOPs/s " << fraction(100.0f*tiops/estimated_tflops) << " |" << std::endl;
         }

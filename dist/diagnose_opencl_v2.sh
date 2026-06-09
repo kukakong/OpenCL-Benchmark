@@ -1,4 +1,4 @@
-#!/vendor/bin/sh
+#!/system/bin/sh
 # OpenCL Device Diagnostic Script for Android (Architecture-Aware)
 # This version handles 32/64-bit library mismatches
 
@@ -111,8 +111,8 @@ echo "4. Checking GPU hardware..."
 if [ -f "/proc/cpuinfo" ]; then
     grep -m1 "Hardware" /proc/cpuinfo 2>/dev/null
 fi
-getprop ro.hardware 2>/dev/null | while read val; do echo "  ro.hardware: $val"; done
-getprop ro.board.platform 2>/dev/null | while read val; do echo "  ro.board.platform: $val"; done
+getprop ro.hardware 2>/dev/null
+getprop ro.board.platform 2>/dev/null
 
 # 5. Check GPU devices
 echo ""

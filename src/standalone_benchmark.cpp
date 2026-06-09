@@ -640,15 +640,16 @@ int main() {
         g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
         g_ocl.clFinish(queue);
         
-        double min_time = 1e30;
+        auto start = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < N_kernel; i++) {
-            auto start = std::chrono::high_resolution_clock::now();
             g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
-            g_ocl.clFinish(queue);
-            auto end = std::chrono::high_resolution_clock::now();
-            min_time = std::min(min_time, std::chrono::duration<double, std::milli>(end - start).count());
         }
-        float bw = 4.0f * N * M / (float)min_time * 1e-9f;
+        g_ocl.clFinish(queue);
+        auto end = std::chrono::high_resolution_clock::now();
+        double total_time_ms = std::chrono::duration<double, std::milli>(end - start).count();
+        double avg_time_ms = total_time_ms / N_kernel;
+        // BW = bytes / time_seconds / 1e9 = 4 * N * M / (avg_time_ms/1000) / 1e9 = 4 * N * M / avg_time_ms * 1e-6
+        float bw = 4.0f * N * M / (float)avg_time_ms * 1e-6f;
         std::cout << "| Memory Bandwidth (coalesced write)                     " 
                   << alignr(18, formatFloat(bw, 2)) << " GB/s |" << std::endl;
         g_ocl.clReleaseKernel(kernel);
@@ -663,15 +664,15 @@ int main() {
         g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
         g_ocl.clFinish(queue);
         
-        double min_time = 1e30;
+        auto start = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < N_kernel; i++) {
-            auto start = std::chrono::high_resolution_clock::now();
             g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
-            g_ocl.clFinish(queue);
-            auto end = std::chrono::high_resolution_clock::now();
-            min_time = std::min(min_time, std::chrono::duration<double, std::milli>(end - start).count());
         }
-        float bw = 4.0f * N * M / (float)min_time * 1e-9f;
+        g_ocl.clFinish(queue);
+        auto end = std::chrono::high_resolution_clock::now();
+        double total_time_ms = std::chrono::duration<double, std::milli>(end - start).count();
+        double avg_time_ms = total_time_ms / N_kernel;
+        float bw = 4.0f * N * M / (float)avg_time_ms * 1e-6f;
         std::cout << "| Memory Bandwidth (coalesced read )                     " 
                   << alignr(18, formatFloat(bw, 2)) << " GB/s |" << std::endl;
         g_ocl.clReleaseKernel(kernel);
@@ -686,15 +687,15 @@ int main() {
         g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
         g_ocl.clFinish(queue);
         
-        double min_time = 1e30;
+        auto start = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < N_kernel; i++) {
-            auto start = std::chrono::high_resolution_clock::now();
             g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
-            g_ocl.clFinish(queue);
-            auto end = std::chrono::high_resolution_clock::now();
-            min_time = std::min(min_time, std::chrono::duration<double, std::milli>(end - start).count());
         }
-        float bw = 4.0f * N * M / (float)min_time * 1e-9f;
+        g_ocl.clFinish(queue);
+        auto end = std::chrono::high_resolution_clock::now();
+        double total_time_ms = std::chrono::duration<double, std::milli>(end - start).count();
+        double avg_time_ms = total_time_ms / N_kernel;
+        float bw = 4.0f * N * M / (float)avg_time_ms * 1e-6f;
         std::cout << "| Memory Bandwidth (misaligned write)                    " 
                   << alignr(18, formatFloat(bw, 2)) << " GB/s |" << std::endl;
         g_ocl.clReleaseKernel(kernel);
@@ -709,15 +710,15 @@ int main() {
         g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
         g_ocl.clFinish(queue);
         
-        double min_time = 1e30;
+        auto start = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < N_kernel; i++) {
-            auto start = std::chrono::high_resolution_clock::now();
             g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
-            g_ocl.clFinish(queue);
-            auto end = std::chrono::high_resolution_clock::now();
-            min_time = std::min(min_time, std::chrono::duration<double, std::milli>(end - start).count());
         }
-        float bw = 4.0f * N * M / (float)min_time * 1e-9f;
+        g_ocl.clFinish(queue);
+        auto end = std::chrono::high_resolution_clock::now();
+        double total_time_ms = std::chrono::duration<double, std::milli>(end - start).count();
+        double avg_time_ms = total_time_ms / N_kernel;
+        float bw = 4.0f * N * M / (float)avg_time_ms * 1e-6f;
         std::cout << "| Memory Bandwidth (misaligned read )                    " 
                   << alignr(18, formatFloat(bw, 2)) << " GB/s |" << std::endl;
         g_ocl.clReleaseKernel(kernel);

@@ -1,4 +1,4 @@
-// Standalone OpenCL Loader and Benchmark
+// Standalone OpenCL Loader and Comprehensive Benchmark
 // Does not depend on any system OpenCL headers
 // Compiles with: g++ -std=c++17 -O2 standalone_benchmark.cpp -o benchmark -ldl
 
@@ -20,19 +20,8 @@
 // ============================================================
 // Minimal OpenCL Type Definitions (no headers needed)
 // ============================================================
-// Note: cl_int and cl_uint are defined as int32_t/uint32_t per OpenCL spec
 typedef int32_t  cl_int;
-typedef int8_t   cl_int8;
-typedef int16_t  cl_int16;
-typedef int32_t  cl_int32;
-typedef int64_t  cl_int64;
 typedef uint32_t cl_uint;
-typedef uint8_t  cl_uint8;
-typedef uint16_t cl_uint16;
-typedef uint32_t cl_uint32;
-typedef uint64_t cl_uint64;
-typedef float    cl_float;
-typedef double   cl_double;
 typedef int64_t  cl_long;
 typedef uint64_t cl_ulong;
 typedef int32_t  cl_bool;
@@ -40,16 +29,8 @@ typedef uint32_t cl_bitfield;
 typedef cl_bitfield cl_device_type;
 typedef cl_bitfield cl_platform_info;
 typedef cl_bitfield cl_device_info;
-typedef cl_bitfield cl_context_info;
-typedef cl_bitfield cl_command_queue_info;
-typedef cl_bitfield cl_mem_info;
-typedef cl_bitfield cl_program_info;
-typedef cl_bitfield cl_kernel_info;
-typedef cl_bitfield cl_event_info;
-typedef cl_bitfield cl_build_info;
 typedef cl_bitfield cl_command_queue_properties;
 typedef cl_bitfield cl_mem_flags;
-typedef cl_bitfield cl_map_flags;
 typedef void* cl_context_properties;
 
 typedef struct _cl_platform_id*    cl_platform_id;
@@ -60,32 +41,17 @@ typedef struct _cl_mem*            cl_mem;
 typedef struct _cl_program*        cl_program;
 typedef struct _cl_kernel*         cl_kernel;
 typedef struct _cl_event*          cl_event;
-typedef struct _cl_sampler*        cl_sampler;
 
 // Error codes
 static const int CL_SUCCESS = 0;
-static const int CL_DEVICE_NOT_FOUND = -1;
-static const int CL_DEVICE_NOT_AVAILABLE = -2;
-static const int CL_INVALID_VALUE = -30;
-static const int CL_INVALID_DEVICE = -33;
-static const int CL_INVALID_CONTEXT = -34;
-static const int CL_INVALID_COMMAND_QUEUE = -36;
-static const int CL_INVALID_MEM_OBJECT = -38;
-static const int CL_INVALID_PROGRAM = -44;
-static const int CL_INVALID_KERNEL = -48;
-static const int CL_INVALID_ARG_INDEX = -49;
-static const int CL_INVALID_WORK_DIMENSION = -53;
-static const int CL_OUT_OF_RESOURCES = -5;
 
 // Bool values
 static const cl_bool CL_FALSE = 0;
 static const cl_bool CL_TRUE = 1;
 
 // Device types
-static const cl_bitfield CL_DEVICE_TYPE_DEFAULT = (1 << 0);
-static const cl_bitfield CL_DEVICE_TYPE_CPU = (1 << 1);
 static const cl_bitfield CL_DEVICE_TYPE_GPU = (1 << 2);
-static const cl_bitfield CL_DEVICE_TYPE_ACCELERATOR = (1 << 3);
+static const cl_bitfield CL_DEVICE_TYPE_CPU = (1 << 1);
 static const cl_bitfield CL_DEVICE_TYPE_ALL = 0xFFFFFFFF;
 
 // Memory flags
@@ -93,19 +59,16 @@ static const cl_bitfield CL_MEM_READ_WRITE = (1 << 0);
 static const cl_bitfield CL_MEM_WRITE_ONLY = (1 << 1);
 static const cl_bitfield CL_MEM_READ_ONLY = (1 << 2);
 static const cl_bitfield CL_MEM_COPY_HOST_PTR = (1 << 5);
-static const cl_bitfield CL_MEM_USE_HOST_PTR = (1 << 7);
 
-// Platform info
+// Platform/Device info constants
 static const cl_platform_info CL_PLATFORM_NAME = 0x0902;
 static const cl_platform_info CL_PLATFORM_VENDOR = 0x0903;
 static const cl_platform_info CL_PLATFORM_VERSION = 0x0904;
 static const cl_platform_info CL_PLATFORM_EXTENSIONS = 0x0905;
-
-// Device info
 static const cl_device_info CL_DEVICE_NAME = 0x102B;
 static const cl_device_info CL_DEVICE_VENDOR = 0x102C;
 static const cl_device_info CL_DEVICE_VERSION = 0x102D;
-static const cl_device_info CL_DRIVER_VERSION = 0x102E;
+static const cl_device_info CL_DEVICE_EXTENSIONS = 0x1030;
 static const cl_device_info CL_DEVICE_TYPE = 0x1000;
 static const cl_device_info CL_DEVICE_MAX_COMPUTE_UNITS = 0x1002;
 static const cl_device_info CL_DEVICE_MAX_CLOCK_FREQUENCY = 0x100C;
@@ -113,6 +76,11 @@ static const cl_device_info CL_DEVICE_GLOBAL_MEM_SIZE = 0x101F;
 static const cl_device_info CL_DEVICE_LOCAL_MEM_SIZE = 0x1023;
 static const cl_device_info CL_DEVICE_MAX_WORK_GROUP_SIZE = 0x1004;
 static const cl_device_info CL_DEVICE_OPENCL_C_VERSION = 0x103D;
+static const cl_device_info CL_DEVICE_PREFERRED_VECTOR_WIDTH_FLOAT = 0x103A;
+static const cl_device_info CL_DEVICE_PROFILING_TIMER_RESOLUTION = 0x1028;
+
+// Build info
+static const cl_uint CL_PROGRAM_BUILD_LOG = 0x1183;
 
 // ============================================================
 // Dynamic Function Loader
@@ -121,7 +89,6 @@ class OpenCLDynamic {
 public:
     void* handle = nullptr;
 
-    // Function pointer typedefs
     typedef int (*fn_clGetPlatformIDs)(cl_uint, cl_platform_id*, cl_uint*);
     typedef int (*fn_clGetPlatformInfo)(cl_platform_id, cl_platform_info, size_t, void*, size_t*);
     typedef int (*fn_clGetDeviceIDs)(cl_platform_id, cl_device_type, cl_uint, cl_device_id*, cl_uint*);
@@ -143,7 +110,7 @@ public:
     typedef int (*fn_clReleaseProgram)(cl_program);
     typedef int (*fn_clBuildProgram)(cl_program, cl_uint, const cl_device_id*, const char*,
                                       void(*)(cl_program, void*), void*);
-    typedef int (*fn_clGetProgramBuildInfo)(cl_program, cl_device_id, cl_build_info, size_t, void*, size_t*);
+    typedef int (*fn_clGetProgramBuildInfo)(cl_program, cl_device_id, cl_uint, size_t, void*, size_t*);
     typedef cl_kernel (*fn_clCreateKernel)(cl_program, const char*, int*);
     typedef int (*fn_clReleaseKernel)(cl_kernel);
     typedef int (*fn_clSetKernelArg)(cl_kernel, cl_uint, size_t, const void*);
@@ -151,7 +118,6 @@ public:
                                              const size_t*, const size_t*,
                                              cl_uint, const cl_event*, cl_event*);
 
-    // Function pointers
     fn_clGetPlatformIDs clGetPlatformIDs = nullptr;
     fn_clGetPlatformInfo clGetPlatformInfo = nullptr;
     fn_clGetDeviceIDs clGetDeviceIDs = nullptr;
@@ -176,17 +142,8 @@ public:
 
     bool load() {
         const char* lib_names[] = {
-            "libOpenCL.so",
-            "libOpenCL.so.1",
-            "libmali.so",
-            "libMali.so",
-            "libGLES_mali.so",
-            "libGLESv2_mali.so",
-            "libOpenCL.so.1.1",
-            "libOpenCL.so.2.0",
-            "libOpenCL.so.3.0",
-            "libPOCL.so",
-            "libpocl.so"
+            "libOpenCL.so", "libOpenCL.so.1", "libmali.so", "libMali.so",
+            "libGLES_mali.so", "libGLESv2_mali.so", "libPOCL.so", "libpocl.so"
         };
 
         std::cout << "Searching for OpenCL library..." << std::endl;
@@ -242,121 +199,120 @@ public:
 static OpenCLDynamic g_ocl;
 
 // ============================================================
-// OpenCL Kernel Code
+// OpenCL Kernel Code (Comprehensive Benchmark)
 // ============================================================
 static const char* kernel_code = R"(
-// Test 1: Vector Addition
-__kernel void test_add(__global float* a, __global float* b, __global float* c, int n) {
-    int i = get_global_id(0);
-    if (i < n) c[i] = a[i] + b[i];
+#define def_N 262144u
+#define def_M 16u
+
+// FP64 (double precision) - requires cl_khr_fp64
+#ifdef cl_khr_fp64
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+kernel void kernel_double(global float* data) {
+    double x = (double)get_global_id(0);
+    double y = (double)get_local_id(0);
+    for(uint i=0u; i<128u; i++) {
+        x = fma(y, x, y);
+        y = fma(x, y, x);
+    }
+    data[get_global_id(0)] = (float)y;
+}
+#endif
+
+// FP32 (float precision)
+kernel void kernel_float(global float* data) {
+    float x = (float)get_global_id(0);
+    float y = (float)get_local_id(0);
+    for(uint i=0u; i<512u; i++) {
+        x = fma(y, x, y);
+        y = fma(x, y, x);
+    }
+    data[get_global_id(0)] = y;
 }
 
-// Test 2: Compute Benchmark
-__kernel void benchmark_compute(__global float* data, int n, int iters) {
-    int i = get_global_id(0);
-    if (i >= n) return;
-    float v = data[i];
-    for (int k = 0; k < iters; k++) {
-        v = v * 1.01f + 0.5f;
+// FP16 (half precision) - requires cl_khr_fp16
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+kernel void kernel_half(global float* data) {
+    half2 x = (half2)((float)get_global_id(0), (float)get_local_id(0));
+    half2 y = (half2)((float)get_local_id(0), (float)get_global_id(0));
+    for(uint i=0u; i<512u; i++) {
+        x = y*x+y;
+        y = x*y+x;
     }
-    data[i] = v;
+    data[get_global_id(0)] = (float)y.x+(float)y.y;
+}
+#endif
+
+// INT64
+kernel void kernel_long(global float* data) {
+    long x = (long)get_global_id(0);
+    long y = (long)get_local_id(0);
+    for(uint i=0u; i<8u; i++) {
+        x = y*x+y;
+        y = x*y+x;
+    }
+    data[get_global_id(0)] = as_float((int)y);
 }
 
-// Test 3: Memory Bandwidth (Read/Write)
-__kernel void mem_bandwidth(__global float* src, __global float* dst, int n) {
-    int i = get_global_id(0);
-    if (i < n) {
-        dst[i] = src[i];
+// INT32
+kernel void kernel_int(global float* data) {
+    int x = get_global_id(0);
+    int y = get_local_id(0);
+    for(uint i=0u; i<512u; i++) {
+        x = y*x+y;
+        y = x*y+x;
     }
+    data[get_global_id(0)] = as_float(y);
 }
 
-// Test 4: Matrix Multiplication (Naive)
-__kernel void matrix_mul(__global float* A, __global float* B, __global float* C, int N) {
-    int row = get_global_id(0);
-    int col = get_global_id(1);
-    if (row < N && col < N) {
-        float sum = 0.0f;
-        for (int k = 0; k < N; k++) {
-            sum += A[row * N + k] * B[k * N + col];
-        }
-        C[row * N + col] = sum;
+// INT16
+kernel void kernel_short(global float* data) {
+    short2 x = as_short2((uint)get_global_id(0));
+    short2 y = as_short2((uint)get_local_id(0));
+    for(uint i=0u; i<128u; i++) {
+        x = y*x+y;
+        y = x*y+x;
     }
+    data[get_global_id(0)] = as_float(y);
 }
 
-// Test 5: Local Memory Test
-__kernel void local_mem_test(__global float* input, __global float* output, int n) {
-    __local float local_data[256];
-    int lid = get_local_id(0);
-    int gid = get_global_id(0);
-    
-    if (gid < n) {
-        local_data[lid] = input[gid];
-        barrier(CLK_LOCAL_MEM_FENCE);
-        
-        // Simple reduction
-        float sum = 0.0f;
-        for (int i = 0; i < 256; i++) {
-            sum += local_data[i];
-        }
-        output[gid] = sum / 256.0f;
+// INT8 (using dp4a if available)
+kernel void kernel_char(global float* data) {
+    char4 x = as_char4((uint)get_global_id(0));
+    char4 y = as_char4((uint)get_local_id(0));
+    for(uint i=0u; i<64u; i++) {
+        int tmp_x = x.x*y.x + x.y*y.y + x.z*y.z + x.w*y.w + (int)y.x;
+        int tmp_y = y.x*x.x + y.y*x.y + y.z*x.z + y.w*x.w + (int)x.x;
+        x = as_char4(tmp_x);
+        y = as_char4(tmp_y);
     }
+    data[get_global_id(0)] = as_float(y);
 }
 
-// Test 6: Integer Operations
-__kernel void int_operations(__global int* a, __global int* b, __global int* c, int n) {
-    int i = get_global_id(0);
-    if (i < n) {
-        c[i] = a[i] * b[i] + a[i] - b[i];
-    }
+// Memory bandwidth tests
+kernel void kernel_coalesced_write(global float* data) {
+    const uint n = get_global_id(0);
+    for(uint i=0u; i<def_M; i++) data[i*def_N+n] = as_float(n);
 }
 
-// Test 7: Mixed Precision (Float + Double if supported)
-__kernel void mixed_ops(__global float* a, __global float* b, __global float* c, int n) {
-    int i = get_global_id(0);
-    if (i < n) {
-        float v = a[i];
-        v = v * v + b[i];
-        v = sqrt(v);
-        v = sin(v) + cos(v);
-        c[i] = v;
-    }
+kernel void kernel_coalesced_read(global float* data) {
+    const uint n = get_global_id(0);
+    float x = 0.0f;
+    for(uint i=0u; i<def_M; i++) x += data[i*def_N+n];
+    data[n] = x;
 }
 
-// Test 8: Atomic Operations
-__kernel void atomic_test(__global int* counter, int n) {
-    int i = get_global_id(0);
-    if (i < n) {
-        atomic_inc(counter);
-    }
+kernel void kernel_misaligned_write(global float* data) {
+    const uint n = get_global_id(0);
+    for(uint i=0u; i<def_M; i++) data[n*def_M+i] = as_float(n);
 }
 
-// Test 9: Parallel Reduction
-__kernel void parallel_reduction(__global float* input, __global float* partial_sums, int n, __local float* temp) {
-    int lid = get_local_id(0);
-    int gid = get_global_id(0);
-    int lsize = get_local_size(0);
-    
-    temp[lid] = (gid < n) ? input[gid] : 0.0f;
-    barrier(CLK_LOCAL_MEM_FENCE);
-    
-    for (int stride = lsize / 2; stride > 0; stride /= 2) {
-        if (lid < stride) {
-            temp[lid] += temp[lid + stride];
-        }
-        barrier(CLK_LOCAL_MEM_FENCE);
-    }
-    
-    if (lid == 0) {
-        partial_sums[get_group_id(0)] = temp[0];
-    }
-}
-
-// Test 10: Vector Types
-__kernel void vector_types(__global float4* a, __global float4* b, __global float4* c, int n) {
-    int i = get_global_id(0);
-    if (i < n) {
-        c[i] = a[i] + b[i];
-    }
+kernel void kernel_misaligned_read(global float* data) {
+    const uint n = get_global_id(0);
+    float x = 0.0f;
+    for(uint i=0u; i<def_M; i++) x += data[n*def_M+i];
+    data[n] = x;
 }
 )";
 
@@ -364,7 +320,7 @@ __kernel void vector_types(__global float4* a, __global float4* b, __global floa
 // Helper Functions
 // ============================================================
 std::string getInfoString(cl_platform_id platform, cl_platform_info param) {
-    char buf[256] = {0};
+    char buf[1024] = {0};
     if (g_ocl.clGetPlatformInfo) {
         g_ocl.clGetPlatformInfo(platform, param, sizeof(buf), buf, nullptr);
     }
@@ -372,7 +328,7 @@ std::string getInfoString(cl_platform_id platform, cl_platform_info param) {
 }
 
 std::string getDeviceString(cl_device_id device, cl_device_info param) {
-    char buf[256] = {0};
+    char buf[1024] = {0};
     if (g_ocl.clGetDeviceInfo) {
         g_ocl.clGetDeviceInfo(device, param, sizeof(buf), buf, nullptr);
     }
@@ -395,13 +351,48 @@ cl_uint getDeviceUInt(cl_device_id device, cl_device_info param) {
     return val;
 }
 
+size_t getDeviceSizeT(cl_device_id device, cl_device_info param) {
+    size_t val = 0;
+    if (g_ocl.clGetDeviceInfo) {
+        g_ocl.clGetDeviceInfo(device, param, sizeof(val), &val, nullptr);
+    }
+    return val;
+}
+
+bool hasExtension(const std::string& extensions, const std::string& ext) {
+    return extensions.find(ext) != std::string::npos;
+}
+
+std::string fraction(float x) {
+    float values[] = {1.0f/64, 1.0f/32, 1.0f/24, 1.0f/16, 1.0f/12, 1.0f/8, 1.0f/4, 1.0f/3, 1.0f/2, 2.0f/3, 1, 2, 4, 8, 16, 32, 64};
+    std::string strs[] = {"1/64", "1/32", "1/24", "1/16", "1/12", "1/8 ", "1/4 ", "1/3 ", "1/2 ", "2/3 ", " 1x ", " 2x ", " 4x ", " 8x ", " 16x", " 32x", " 64x"};
+    int imin = 0;
+    float vmin = 1e30f;
+    for (int i = 0; i < 17; i++) {
+        float vnew = std::pow(0.01f*x - values[i], 2);
+        if (vnew <= vmin) { vmin = vnew; imin = i; }
+    }
+    return "(" + strs[imin] + ")";
+}
+
+std::string alignr(int width, const std::string& s) {
+    if ((int)s.length() >= width) return s;
+    return std::string(width - s.length(), ' ') + s;
+}
+
+std::string formatFloat(float val, int prec) {
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(prec) << val;
+    return oss.str();
+}
+
 // ============================================================
 // Main
 // ============================================================
 int main() {
-    std::cout << "==============================================" << std::endl;
-    std::cout << "  OpenCL-Benchmark (Standalone)" << std::endl;
-    std::cout << "==============================================" << std::endl;
+    std::cout << ".-----------------------------------------------------------------------------." << std::endl;
+    std::cout << "|                       OpenCL-Benchmark (Standalone)                         |" << std::endl;
+    std::cout << "'-----------------------------------------------------------------------------'" << std::endl;
     std::cout << std::endl;
 
     if (!g_ocl.load()) {
@@ -411,11 +402,7 @@ int main() {
 
     // Get platforms
     cl_uint num_platforms = 0;
-    cl_int err = g_ocl.clGetPlatformIDs(0, nullptr, &num_platforms);
-    if (err != CL_SUCCESS) {
-        std::cerr << "clGetPlatformIDs failed: " << err << std::endl;
-        return 1;
-    }
+    g_ocl.clGetPlatformIDs(0, nullptr, &num_platforms);
     if (num_platforms == 0) {
         std::cerr << "No OpenCL platforms found!" << std::endl;
         return 1;
@@ -425,64 +412,72 @@ int main() {
     std::vector<cl_platform_id> platforms(num_platforms);
     g_ocl.clGetPlatformIDs(num_platforms, platforms.data(), nullptr);
 
-    // Find all devices
-    std::vector<cl_device_id> all_devices;
+    // Find GPU device
     cl_device_id gpu_device = nullptr;
     cl_platform_id gpu_platform = nullptr;
 
     for (cl_uint p = 0; p < num_platforms; p++) {
-        std::string name = getInfoString(platforms[p], CL_PLATFORM_NAME);
-        std::string vendor = getInfoString(platforms[p], CL_PLATFORM_VENDOR);
-        std::string version = getInfoString(platforms[p], CL_PLATFORM_VERSION);
-        std::cout << "\nPlatform " << p << ": " << name << std::endl;
-        std::cout << "  Vendor: " << vendor << std::endl;
-        std::cout << "  Version: " << version << std::endl;
+        cl_uint num_devs = 0;
+        g_ocl.clGetDeviceIDs(platforms[p], CL_DEVICE_TYPE_GPU, 0, nullptr, &num_devs);
+        if (num_devs > 0) {
+            g_ocl.clGetDeviceIDs(platforms[p], CL_DEVICE_TYPE_GPU, 1, &gpu_device, nullptr);
+            gpu_platform = platforms[p];
+            break;
+        }
+    }
 
-        for (cl_bitfield dtype : {CL_DEVICE_TYPE_GPU, CL_DEVICE_TYPE_CPU, CL_DEVICE_TYPE_ACCELERATOR}) {
+    if (!gpu_device) {
+        // Fallback to CPU
+        for (cl_uint p = 0; p < num_platforms; p++) {
             cl_uint num_devs = 0;
-            err = g_ocl.clGetDeviceIDs(platforms[p], dtype, 0, nullptr, &num_devs);
-            if (err != CL_SUCCESS || num_devs == 0) continue;
-
-            std::vector<cl_device_id> devs(num_devs);
-            g_ocl.clGetDeviceIDs(platforms[p], dtype, num_devs, devs.data(), nullptr);
-
-            for (cl_device_id dev : devs) {
-                std::string dname = getDeviceString(dev, CL_DEVICE_NAME);
-                std::string dvendor = getDeviceString(dev, CL_DEVICE_VENDOR);
-                cl_uint cus = getDeviceUInt(dev, CL_DEVICE_MAX_COMPUTE_UNITS);
-                cl_uint freq = getDeviceUInt(dev, CL_DEVICE_MAX_CLOCK_FREQUENCY);
-                cl_ulong mem = getDeviceULong(dev, CL_DEVICE_GLOBAL_MEM_SIZE);
-
-                std::cout << "  Device: " << dname << std::endl;
-                std::cout << "    Vendor: " << dvendor << std::endl;
-                std::cout << "    Compute Units: " << cus << std::endl;
-                std::cout << "    Max Frequency: " << freq << " MHz" << std::endl;
-                std::cout << "    Global Memory: " << (mem / 1024 / 1024) << " MB" << std::endl;
-
-                all_devices.push_back(dev);
-                if (dtype == CL_DEVICE_TYPE_GPU && !gpu_device) {
-                    gpu_device = dev;
-                    gpu_platform = platforms[p];
-                }
+            g_ocl.clGetDeviceIDs(platforms[p], CL_DEVICE_TYPE_CPU, 0, nullptr, &num_devs);
+            if (num_devs > 0) {
+                g_ocl.clGetDeviceIDs(platforms[p], CL_DEVICE_TYPE_CPU, 1, &gpu_device, nullptr);
+                gpu_platform = platforms[p];
+                break;
             }
         }
     }
 
-    if (all_devices.empty()) {
-        std::cerr << "\nNo OpenCL devices found!" << std::endl;
+    if (!gpu_device) {
+        std::cerr << "No OpenCL devices found!" << std::endl;
         return 1;
     }
 
-    cl_device_id test_device = gpu_device ? gpu_device : all_devices[0];
-    cl_platform_id test_platform = gpu_platform ? gpu_platform : platforms[0];
+    // Get device info
+    std::string dev_name = getDeviceString(gpu_device, CL_DEVICE_NAME);
+    std::string dev_vendor = getDeviceString(gpu_device, CL_DEVICE_VENDOR);
+    std::string dev_version = getDeviceString(gpu_device, CL_DEVICE_VERSION);
+    std::string dev_extensions = getDeviceString(gpu_device, CL_DEVICE_EXTENSIONS);
+    cl_uint compute_units = getDeviceUInt(gpu_device, CL_DEVICE_MAX_COMPUTE_UNITS);
+    cl_uint max_freq = getDeviceUInt(gpu_device, CL_DEVICE_MAX_CLOCK_FREQUENCY);
+    cl_ulong global_mem = getDeviceULong(gpu_device, CL_DEVICE_GLOBAL_MEM_SIZE);
+    size_t max_wg_size = getDeviceSizeT(gpu_device, CL_DEVICE_MAX_WORK_GROUP_SIZE);
 
-    std::cout << "\n==============================================" << std::endl;
-    std::cout << "  Running Test on: " << getDeviceString(test_device, CL_DEVICE_NAME) << std::endl;
-    std::cout << "==============================================" << std::endl;
+    // Check FP64/FP16 support
+    bool has_fp64 = hasExtension(dev_extensions, "cl_khr_fp64") || hasExtension(dev_extensions, "cl_amd_fp64");
+    bool has_fp16 = hasExtension(dev_extensions, "cl_khr_fp16") || hasExtension(dev_extensions, "cl_amd_fp16");
+
+    // Estimate peak performance (very rough)
+    float estimated_tflops = (float)compute_units * (float)max_freq * 0.001f * 0.064f; // rough estimate
+
+    std::cout << std::endl;
+    std::cout << ".-----------------------------------------------------------------------------." << std::endl;
+    std::cout << "| Device: " << std::left << std::setw(68) << dev_name << "|" << std::endl;
+    std::cout << "| Vendor: " << std::left << std::setw(68) << dev_vendor << "|" << std::endl;
+    std::cout << "| Version: " << std::left << std::setw(67) << dev_version << "|" << std::endl;
+    std::cout << "| Compute Units: " << std::left << std::setw(60) << compute_units << "|" << std::endl;
+    std::cout << "| Max Frequency: " << std::left << std::setw(60) << (std::to_string(max_freq) + " MHz") << "|" << std::endl;
+    std::cout << "| Global Memory: " << std::left << std::setw(60) << (std::to_string(global_mem / 1024 / 1024) + " MB") << "|" << std::endl;
+    std::cout << "| Max Work Group Size: " << std::left << std::setw(53) << max_wg_size << "|" << std::endl;
+    std::cout << "| FP64 Support: " << std::left << std::setw(61) << (has_fp64 ? "Yes" : "No") << "|" << std::endl;
+    std::cout << "| FP16 Support: " << std::left << std::setw(61) << (has_fp16 ? "Yes" : "No") << "|" << std::endl;
+    std::cout << "'-----------------------------------------------------------------------------'" << std::endl;
+    std::cout << std::endl;
 
     // Create context
     cl_int ctx_err = 0;
-    cl_context context = g_ocl.clCreateContext(nullptr, 1, &test_device, nullptr, nullptr, &ctx_err);
+    cl_context context = g_ocl.clCreateContext(nullptr, 1, &gpu_device, nullptr, nullptr, &ctx_err);
     if (ctx_err != CL_SUCCESS) {
         std::cerr << "Failed to create context: " << ctx_err << std::endl;
         return 1;
@@ -490,7 +485,7 @@ int main() {
 
     // Create command queue
     cl_int q_err = 0;
-    cl_command_queue queue = g_ocl.clCreateCommandQueue(context, test_device, 0, &q_err);
+    cl_command_queue queue = g_ocl.clCreateCommandQueue(context, gpu_device, 0, &q_err);
     if (q_err != CL_SUCCESS) {
         std::cerr << "Failed to create command queue: " << q_err << std::endl;
         g_ocl.clReleaseContext(context);
@@ -499,10 +494,10 @@ int main() {
 
     // Create and build program
     cl_program program = g_ocl.clCreateProgramWithSource(context, 1, &kernel_code, nullptr, nullptr);
-    err = g_ocl.clBuildProgram(program, 1, &test_device, nullptr, nullptr, nullptr);
+    cl_int err = g_ocl.clBuildProgram(program, 1, &gpu_device, nullptr, nullptr, nullptr);
     if (err != CL_SUCCESS) {
-        char log[4096] = {0};
-        g_ocl.clGetProgramBuildInfo(program, test_device, 0x1183, sizeof(log), log, nullptr);
+        char log[8192] = {0};
+        g_ocl.clGetProgramBuildInfo(program, gpu_device, CL_PROGRAM_BUILD_LOG, sizeof(log), log, nullptr);
         std::cerr << "Build failed: " << err << std::endl;
         std::cerr << "Log: " << log << std::endl;
         g_ocl.clReleaseProgram(program);
@@ -510,401 +505,221 @@ int main() {
         g_ocl.clReleaseContext(context);
         return 1;
     }
-    std::cout << "Program compiled successfully!" << std::endl;
 
-    // Track test results
-    int tests_passed = 0;
-    int tests_total = 0;
+    std::cout << ".-----------------------------------------------------------------------------." << std::endl;
+    std::cout << "| Info: OpenCL C code successfully compiled.                                  |" << std::endl;
 
-    // Test 1: Simple vector add
-    {
-        std::cout << "\n--- Test 1: Vector Addition ---" << std::endl;
-        tests_total++;
-        const size_t N = 1024;
-        std::vector<float> a(N, 1.0f), b(N, 2.0f), c(N, 0.0f);
+    // Benchmark parameters
+    const size_t N = 262144; // kernel range
+    const size_t M = 16;     // coalescence size
+    const int N_kernel = 16; // iterations
 
-        cl_mem buf_a = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
-                                             N * sizeof(float), a.data(), nullptr);
-        cl_mem buf_b = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
-                                             N * sizeof(float), b.data(), nullptr);
-        cl_mem buf_c = g_ocl.clCreateBuffer(context, CL_MEM_WRITE_ONLY,
-                                             N * sizeof(float), nullptr, nullptr);
+    // Allocate buffer
+    std::vector<float> data(N * M, 0.0f);
+    cl_mem buffer = g_ocl.clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
+                                         N * M * sizeof(float), data.data(), nullptr);
 
-        cl_kernel kernel = g_ocl.clCreateKernel(program, "test_add", nullptr);
-        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buf_a);
-        g_ocl.clSetKernelArg(kernel, 1, sizeof(cl_mem), &buf_b);
-        g_ocl.clSetKernelArg(kernel, 2, sizeof(cl_mem), &buf_c);
-        int n_val = (int)N;
-        g_ocl.clSetKernelArg(kernel, 3, sizeof(int), &n_val);
+    auto benchmark_kernel = [&](const char* name, int ops_per_iter, int inner_iters) -> double {
+        cl_kernel kernel = g_ocl.clCreateKernel(program, name, nullptr);
+        if (!kernel) return 1e30;
 
-        size_t global_size = N;
-        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, nullptr, 0, nullptr, nullptr);
-        g_ocl.clFinish(queue);
-        g_ocl.clEnqueueReadBuffer(queue, buf_c, CL_TRUE, 0, N * sizeof(float), c.data(), 0, nullptr, nullptr);
-
-        bool correct = true;
-        for (size_t i = 0; i < N; i++) {
-            if (std::fabs(c[i] - 3.0f) > 0.001f) { correct = false; break; }
-        }
-        std::cout << "  Result: " << (correct ? "PASSED" : "FAILED") << std::endl;
-        if (correct) tests_passed++;
-
-        g_ocl.clReleaseKernel(kernel);
-        g_ocl.clReleaseMemObject(buf_a);
-        g_ocl.clReleaseMemObject(buf_b);
-        g_ocl.clReleaseMemObject(buf_c);
-    }
-
-    // Test 2: Compute benchmark
-    {
-        std::cout << "\n--- Test 2: Compute Benchmark ---" << std::endl;
-        tests_total++;
-        const size_t N = 1024 * 1024;
-        const int iters = 100;
-
-        std::vector<float> data(N, 1.0f);
-        cl_mem buf = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_WRITE,
-                                          N * sizeof(float), data.data(), nullptr);
-
-        cl_kernel kernel = g_ocl.clCreateKernel(program, "benchmark_compute", nullptr);
-        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buf);
-        int n_val = (int)N;
-        g_ocl.clSetKernelArg(kernel, 1, sizeof(int), &n_val);
-        g_ocl.clSetKernelArg(kernel, 2, sizeof(int), &iters);
-
-        // Warmup
-        size_t global_size = N;
-        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, nullptr, 0, nullptr, nullptr);
-        g_ocl.clFinish(queue);
-
-        // Benchmark
-        auto start = std::chrono::high_resolution_clock::now();
-        for (int i = 0; i < 10; i++) {
-            g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, nullptr, 0, nullptr, nullptr);
-        }
-        g_ocl.clFinish(queue);
-        auto end = std::chrono::high_resolution_clock::now();
-
-        double time_ms = std::chrono::duration<double, std::milli>(end - start).count() / 10.0;
-        double gflops = (double)N * iters * 2 / (time_ms * 1e6);
-        std::cout << "  Time: " << std::fixed << std::setprecision(3) << time_ms << " ms" << std::endl;
-        std::cout << "  Performance: " << std::setprecision(2) << gflops << " GFLOPS" << std::endl;
-        tests_passed++;
-
-        g_ocl.clReleaseKernel(kernel);
-        g_ocl.clReleaseMemObject(buf);
-    }
-
-    // Test 3: Memory Bandwidth
-    {
-        std::cout << "\n--- Test 3: Memory Bandwidth ---" << std::endl;
-        tests_total++;
-        const size_t N = 4 * 1024 * 1024; // 4M elements = 16MB
-
-        std::vector<float> src(N, 1.0f), dst(N, 0.0f);
-        cl_mem buf_src = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
-                                              N * sizeof(float), src.data(), nullptr);
-        cl_mem buf_dst = g_ocl.clCreateBuffer(context, CL_MEM_WRITE_ONLY,
-                                              N * sizeof(float), nullptr, nullptr);
-
-        cl_kernel kernel = g_ocl.clCreateKernel(program, "mem_bandwidth", nullptr);
-        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buf_src);
-        g_ocl.clSetKernelArg(kernel, 1, sizeof(cl_mem), &buf_dst);
-        int n_val = (int)N;
-        g_ocl.clSetKernelArg(kernel, 2, sizeof(int), &n_val);
-
-        // Warmup
-        size_t global_size = N;
-        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, nullptr, 0, nullptr, nullptr);
-        g_ocl.clFinish(queue);
-
-        // Benchmark
-        auto start = std::chrono::high_resolution_clock::now();
-        for (int i = 0; i < 10; i++) {
-            g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, nullptr, 0, nullptr, nullptr);
-        }
-        g_ocl.clFinish(queue);
-        auto end = std::chrono::high_resolution_clock::now();
-
-        double time_ms = std::chrono::duration<double, std::milli>(end - start).count() / 10.0;
-        double bandwidth = (double)N * sizeof(float) * 2 / (time_ms * 1e6); // Read + Write
-        std::cout << "  Time: " << std::fixed << std::setprecision(3) << time_ms << " ms" << std::endl;
-        std::cout << "  Bandwidth: " << std::setprecision(2) << bandwidth << " GB/s" << std::endl;
-        tests_passed++;
-
-        g_ocl.clReleaseKernel(kernel);
-        g_ocl.clReleaseMemObject(buf_src);
-        g_ocl.clReleaseMemObject(buf_dst);
-    }
-
-    // Test 4: Matrix Multiplication
-    {
-        std::cout << "\n--- Test 4: Matrix Multiplication (64x64) ---" << std::endl;
-        tests_total++;
-        const int N = 64;
-        std::vector<float> A(N * N, 1.0f), B(N * N, 2.0f), C(N * N, 0.0f);
-
-        cl_mem buf_A = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
-                                            N * N * sizeof(float), A.data(), nullptr);
-        cl_mem buf_B = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
-                                            N * N * sizeof(float), B.data(), nullptr);
-        cl_mem buf_C = g_ocl.clCreateBuffer(context, CL_MEM_WRITE_ONLY,
-                                            N * N * sizeof(float), nullptr, nullptr);
-
-        cl_kernel kernel = g_ocl.clCreateKernel(program, "matrix_mul", nullptr);
-        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buf_A);
-        g_ocl.clSetKernelArg(kernel, 1, sizeof(cl_mem), &buf_B);
-        g_ocl.clSetKernelArg(kernel, 2, sizeof(cl_mem), &buf_C);
-        g_ocl.clSetKernelArg(kernel, 3, sizeof(int), &N);
-
-        size_t global[2] = {(size_t)N, (size_t)N};
-        auto start = std::chrono::high_resolution_clock::now();
-        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 2, nullptr, global, nullptr, 0, nullptr, nullptr);
-        g_ocl.clFinish(queue);
-        auto end = std::chrono::high_resolution_clock::now();
-
-        g_ocl.clEnqueueReadBuffer(queue, buf_C, CL_TRUE, 0, N * N * sizeof(float), C.data(), 0, nullptr, nullptr);
-
-        double time_ms = std::chrono::duration<double, std::milli>(end - start).count();
-        // Expected: C[i][j] = sum(A[i][k] * B[k][j]) = N * 1.0 * 2.0 = 2N = 128
-        bool correct = std::fabs(C[0] - 128.0f) < 0.001f;
-        std::cout << "  Time: " << std::fixed << std::setprecision(3) << time_ms << " ms" << std::endl;
-        std::cout << "  Result: " << (correct ? "PASSED" : "FAILED") << " (C[0]=" << C[0] << ", expected=128)" << std::endl;
-        if (correct) tests_passed++;
-
-        g_ocl.clReleaseKernel(kernel);
-        g_ocl.clReleaseMemObject(buf_A);
-        g_ocl.clReleaseMemObject(buf_B);
-        g_ocl.clReleaseMemObject(buf_C);
-    }
-
-    // Test 5: Local Memory
-    {
-        std::cout << "\n--- Test 5: Local Memory Test ---" << std::endl;
-        tests_total++;
-        const size_t N = 256 * 4; // 4 workgroups
-        std::vector<float> input(N, 2.0f), output(N, 0.0f);
-
-        cl_mem buf_in = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
-                                             N * sizeof(float), input.data(), nullptr);
-        cl_mem buf_out = g_ocl.clCreateBuffer(context, CL_MEM_WRITE_ONLY,
-                                              N * sizeof(float), nullptr, nullptr);
-
-        cl_kernel kernel = g_ocl.clCreateKernel(program, "local_mem_test", nullptr);
-        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buf_in);
-        g_ocl.clSetKernelArg(kernel, 1, sizeof(cl_mem), &buf_out);
-        int n_val = (int)N;
-        g_ocl.clSetKernelArg(kernel, 2, sizeof(int), &n_val);
+        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buffer);
 
         size_t global_size = N;
         size_t local_size = 256;
+
+        // Warmup
         g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, &local_size, 0, nullptr, nullptr);
         g_ocl.clFinish(queue);
-        g_ocl.clEnqueueReadBuffer(queue, buf_out, CL_TRUE, 0, N * sizeof(float), output.data(), 0, nullptr, nullptr);
 
-        // Each output should be average of 256 elements = 2.0
-        bool correct = std::fabs(output[0] - 2.0f) < 0.001f;
-        std::cout << "  Result: " << (correct ? "PASSED" : "FAILED") << " (output[0]=" << output[0] << ", expected=2.0)" << std::endl;
-        if (correct) tests_passed++;
+        // Benchmark
+        double min_time = 1e30;
+        for (int i = 0; i < N_kernel; i++) {
+            auto start = std::chrono::high_resolution_clock::now();
+            g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, &local_size, 0, nullptr, nullptr);
+            g_ocl.clFinish(queue);
+            auto end = std::chrono::high_resolution_clock::now();
+            double time_ms = std::chrono::duration<double, std::milli>(end - start).count();
+            min_time = std::min(min_time, time_ms);
+        }
 
         g_ocl.clReleaseKernel(kernel);
-        g_ocl.clReleaseMemObject(buf_in);
-        g_ocl.clReleaseMemObject(buf_out);
+        return min_time;
+    };
+
+    // FP64 Compute
+    if (has_fp64) {
+        double time = benchmark_kernel("kernel_double", 512, 128);
+        if (time < 1e20) {
+            float tflops = 512.0f * (float)N / (float)time * 1e-12f;
+            std::cout << "| FP64  compute                                          " 
+                      << alignr(15, formatFloat(tflops, 3)) << " TFLOPs/s " << fraction(100.0f*tflops/estimated_tflops) << " |" << std::endl;
+        }
+    } else {
+        std::cout << "| FP64  compute                                          not supported        |" << std::endl;
     }
 
-    // Test 6: Integer Operations
+    // FP32 Compute
     {
-        std::cout << "\n--- Test 6: Integer Operations ---" << std::endl;
-        tests_total++;
-        const size_t N = 1024;
-        std::vector<int> a(N, 10), b(N, 3), c(N, 0);
-
-        cl_mem buf_a = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
-                                            N * sizeof(int), a.data(), nullptr);
-        cl_mem buf_b = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
-                                            N * sizeof(int), b.data(), nullptr);
-        cl_mem buf_c = g_ocl.clCreateBuffer(context, CL_MEM_WRITE_ONLY,
-                                            N * sizeof(int), nullptr, nullptr);
-
-        cl_kernel kernel = g_ocl.clCreateKernel(program, "int_operations", nullptr);
-        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buf_a);
-        g_ocl.clSetKernelArg(kernel, 1, sizeof(cl_mem), &buf_b);
-        g_ocl.clSetKernelArg(kernel, 2, sizeof(cl_mem), &buf_c);
-        int n_val = (int)N;
-        g_ocl.clSetKernelArg(kernel, 3, sizeof(int), &n_val);
-
-        size_t global_size = N;
-        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, nullptr, 0, nullptr, nullptr);
-        g_ocl.clFinish(queue);
-        g_ocl.clEnqueueReadBuffer(queue, buf_c, CL_TRUE, 0, N * sizeof(int), c.data(), 0, nullptr, nullptr);
-
-        // Expected: c = a * b + a - b = 10 * 3 + 10 - 3 = 37
-        bool correct = c[0] == 37;
-        std::cout << "  Result: " << (correct ? "PASSED" : "FAILED") << " (c[0]=" << c[0] << ", expected=37)" << std::endl;
-        if (correct) tests_passed++;
-
-        g_ocl.clReleaseKernel(kernel);
-        g_ocl.clReleaseMemObject(buf_a);
-        g_ocl.clReleaseMemObject(buf_b);
-        g_ocl.clReleaseMemObject(buf_c);
+        double time = benchmark_kernel("kernel_float", 2048, 512);
+        if (time < 1e20) {
+            float tflops = 2048.0f * (float)N / (float)time * 1e-12f;
+            std::cout << "| FP32  compute                                          " 
+                      << alignr(15, formatFloat(tflops, 3)) << " TFLOPs/s " << fraction(100.0f*tflops/estimated_tflops) << " |" << std::endl;
+        }
     }
 
-    // Test 7: Mixed Precision (Math Functions)
+    // FP16 Compute
+    if (has_fp16) {
+        double time = benchmark_kernel("kernel_half", 4096, 512);
+        if (time < 1e20) {
+            float tflops = 4096.0f * (float)N / (float)time * 1e-12f;
+            std::cout << "| FP16  compute                                          " 
+                      << alignr(15, formatFloat(tflops, 3)) << " TFLOPs/s " << fraction(100.0f*tflops/estimated_tflops) << " |" << std::endl;
+        }
+    } else {
+        std::cout << "| FP16  compute                                          not supported        |" << std::endl;
+    }
+
+    // INT64 Compute
     {
-        std::cout << "\n--- Test 7: Math Functions (sin/cos/sqrt) ---" << std::endl;
-        tests_total++;
-        const size_t N = 1024;
-        std::vector<float> a(N, 1.0f), b(N, 0.0f), c(N, 0.0f);
-
-        cl_mem buf_a = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
-                                            N * sizeof(float), a.data(), nullptr);
-        cl_mem buf_b = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
-                                            N * sizeof(float), b.data(), nullptr);
-        cl_mem buf_c = g_ocl.clCreateBuffer(context, CL_MEM_WRITE_ONLY,
-                                            N * sizeof(float), nullptr, nullptr);
-
-        cl_kernel kernel = g_ocl.clCreateKernel(program, "mixed_ops", nullptr);
-        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buf_a);
-        g_ocl.clSetKernelArg(kernel, 1, sizeof(cl_mem), &buf_b);
-        g_ocl.clSetKernelArg(kernel, 2, sizeof(cl_mem), &buf_c);
-        int n_val = (int)N;
-        g_ocl.clSetKernelArg(kernel, 3, sizeof(int), &n_val);
-
-        size_t global_size = N;
-        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, nullptr, 0, nullptr, nullptr);
-        g_ocl.clFinish(queue);
-        g_ocl.clEnqueueReadBuffer(queue, buf_c, CL_TRUE, 0, N * sizeof(float), c.data(), 0, nullptr, nullptr);
-
-        // v = 1.0, v = 1.0*1.0 + 0 = 1.0, v = sqrt(1.0) = 1.0, v = sin(1.0) + cos(1.0) ≈ 1.38
-        float expected = std::sin(1.0f) + std::cos(1.0f);
-        bool correct = std::fabs(c[0] - expected) < 0.01f;
-        std::cout << "  Result: " << (correct ? "PASSED" : "FAILED") << " (c[0]=" << c[0] << ", expected=" << expected << ")" << std::endl;
-        if (correct) tests_passed++;
-
-        g_ocl.clReleaseKernel(kernel);
-        g_ocl.clReleaseMemObject(buf_a);
-        g_ocl.clReleaseMemObject(buf_b);
-        g_ocl.clReleaseMemObject(buf_c);
+        double time = benchmark_kernel("kernel_long", 32, 8);
+        if (time < 1e20) {
+            float tiops = 32.0f * (float)N / (float)time * 1e-12f;
+            std::cout << "| INT64 compute                                          " 
+                      << alignr(15, formatFloat(tiops, 3)) << "  TIOPs/s " << fraction(100.0f*tiops/estimated_tflops) << " |" << std::endl;
+        }
     }
 
-    // Test 8: Atomic Operations
+    // INT32 Compute
     {
-        std::cout << "\n--- Test 8: Atomic Operations ---" << std::endl;
-        tests_total++;
-        const size_t N = 10000;
-        int counter_init = 0;
-        std::vector<int> counter(1, 0);
-
-        cl_mem buf_counter = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_WRITE,
-                                                  sizeof(int), counter.data(), nullptr);
-
-        cl_kernel kernel = g_ocl.clCreateKernel(program, "atomic_test", nullptr);
-        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buf_counter);
-        int n_val = (int)N;
-        g_ocl.clSetKernelArg(kernel, 1, sizeof(int), &n_val);
-
-        size_t global_size = N;
-        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, nullptr, 0, nullptr, nullptr);
-        g_ocl.clFinish(queue);
-        g_ocl.clEnqueueReadBuffer(queue, buf_counter, CL_TRUE, 0, sizeof(int), counter.data(), 0, nullptr, nullptr);
-
-        bool correct = counter[0] == (int)N;
-        std::cout << "  Result: " << (correct ? "PASSED" : "FAILED") << " (counter=" << counter[0] << ", expected=" << N << ")" << std::endl;
-        if (correct) tests_passed++;
-
-        g_ocl.clReleaseKernel(kernel);
-        g_ocl.clReleaseMemObject(buf_counter);
+        double time = benchmark_kernel("kernel_int", 2048, 512);
+        if (time < 1e20) {
+            float tiops = 2048.0f * (float)N / (float)time * 1e-12f;
+            std::cout << "| INT32 compute                                          " 
+                      << alignr(15, formatFloat(tiops, 3)) << "  TIOPs/s " << fraction(100.0f*tiops/estimated_tflops) << " |" << std::endl;
+        }
     }
 
-    // Test 9: Parallel Reduction
+    // INT16 Compute
     {
-        std::cout << "\n--- Test 9: Parallel Reduction ---" << std::endl;
-        tests_total++;
-        const size_t N = 1024 * 1024;
-        const size_t local_size = 256;
-        const size_t num_groups = N / local_size;
-
-        std::vector<float> input(N, 1.0f);
-        std::vector<float> partial_sums(num_groups, 0.0f);
-
-        cl_mem buf_in = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
-                                             N * sizeof(float), input.data(), nullptr);
-        cl_mem buf_partial = g_ocl.clCreateBuffer(context, CL_MEM_WRITE_ONLY,
-                                                  num_groups * sizeof(float), nullptr, nullptr);
-
-        cl_kernel kernel = g_ocl.clCreateKernel(program, "parallel_reduction", nullptr);
-        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buf_in);
-        g_ocl.clSetKernelArg(kernel, 1, sizeof(cl_mem), &buf_partial);
-        int n_val = (int)N;
-        g_ocl.clSetKernelArg(kernel, 2, sizeof(int), &n_val);
-        size_t local_mem_size = local_size * sizeof(float);
-        g_ocl.clSetKernelArg(kernel, 3, local_mem_size, nullptr);
-
-        size_t global_size = N;
-        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, &local_size, 0, nullptr, nullptr);
-        g_ocl.clFinish(queue);
-        g_ocl.clEnqueueReadBuffer(queue, buf_partial, CL_TRUE, 0, num_groups * sizeof(float), partial_sums.data(), 0, nullptr, nullptr);
-
-        // Sum all partial results
-        float total = 0.0f;
-        for (size_t i = 0; i < num_groups; i++) total += partial_sums[i];
-
-        float expected = (float)N;
-        bool correct = std::fabs(total - expected) < expected * 0.001f;
-        std::cout << "  Result: " << (correct ? "PASSED" : "FAILED") << " (sum=" << (long long)total << ", expected=" << (long long)expected << ")" << std::endl;
-        if (correct) tests_passed++;
-
-        g_ocl.clReleaseKernel(kernel);
-        g_ocl.clReleaseMemObject(buf_in);
-        g_ocl.clReleaseMemObject(buf_partial);
+        double time = benchmark_kernel("kernel_short", 1024, 128);
+        if (time < 1e20) {
+            float tiops = 1024.0f * (float)N / (float)time * 1e-12f;
+            std::cout << "| INT16 compute                                          " 
+                      << alignr(15, formatFloat(tiops, 4)) << "  TIOPs/s " << fraction(100.0f*tiops/estimated_tflops) << " |" << std::endl;
+        }
     }
 
-    // Test 10: Vector Types (float4)
+    // INT8 Compute
     {
-        std::cout << "\n--- Test 10: Vector Types (float4) ---" << std::endl;
-        tests_total++;
-        const size_t N = 1024; // 1024 float4 vectors = 4096 floats
-        std::vector<float> a(N * 4, 1.0f), b(N * 4, 2.0f), c(N * 4, 0.0f);
-
-        cl_mem buf_a = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
-                                            N * 4 * sizeof(float), a.data(), nullptr);
-        cl_mem buf_b = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
-                                            N * 4 * sizeof(float), b.data(), nullptr);
-        cl_mem buf_c = g_ocl.clCreateBuffer(context, CL_MEM_WRITE_ONLY,
-                                            N * 4 * sizeof(float), nullptr, nullptr);
-
-        cl_kernel kernel = g_ocl.clCreateKernel(program, "vector_types", nullptr);
-        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buf_a);
-        g_ocl.clSetKernelArg(kernel, 1, sizeof(cl_mem), &buf_b);
-        g_ocl.clSetKernelArg(kernel, 2, sizeof(cl_mem), &buf_c);
-        int n_val = (int)N;
-        g_ocl.clSetKernelArg(kernel, 3, sizeof(int), &n_val);
-
-        size_t global_size = N;
-        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, nullptr, 0, nullptr, nullptr);
-        g_ocl.clFinish(queue);
-        g_ocl.clEnqueueReadBuffer(queue, buf_c, CL_TRUE, 0, N * 4 * sizeof(float), c.data(), 0, nullptr, nullptr);
-
-        // Expected: c = a + b = 1.0 + 2.0 = 3.0
-        bool correct = std::fabs(c[0] - 3.0f) < 0.001f;
-        std::cout << "  Result: " << (correct ? "PASSED" : "FAILED") << " (c[0]=" << c[0] << ", expected=3.0)" << std::endl;
-        if (correct) tests_passed++;
-
-        g_ocl.clReleaseKernel(kernel);
-        g_ocl.clReleaseMemObject(buf_a);
-        g_ocl.clReleaseMemObject(buf_b);
-        g_ocl.clReleaseMemObject(buf_c);
+        double time = benchmark_kernel("kernel_char", 1024, 64);
+        if (time < 1e20) {
+            float tiops = 1024.0f * (float)N / (float)time * 1e-12f;
+            std::cout << "| INT8  compute                                          " 
+                      << alignr(15, formatFloat(tiops, 4)) << "  TIOPs/s " << fraction(100.0f*tiops/estimated_tflops) << " |" << std::endl;
+        }
     }
+
+    // Memory Bandwidth - Coalesced Write
+    {
+        cl_kernel kernel = g_ocl.clCreateKernel(program, "kernel_coalesced_write", nullptr);
+        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buffer);
+        size_t global = N, local = 256;
+        
+        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
+        g_ocl.clFinish(queue);
+        
+        double min_time = 1e30;
+        for (int i = 0; i < N_kernel; i++) {
+            auto start = std::chrono::high_resolution_clock::now();
+            g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
+            g_ocl.clFinish(queue);
+            auto end = std::chrono::high_resolution_clock::now();
+            min_time = std::min(min_time, std::chrono::duration<double, std::milli>(end - start).count());
+        }
+        float bw = 4.0f * N * M / (float)min_time * 1e-9f;
+        std::cout << "| Memory Bandwidth (coalesced write)                     " 
+                  << alignr(18, formatFloat(bw, 2)) << " GB/s |" << std::endl;
+        g_ocl.clReleaseKernel(kernel);
+    }
+
+    // Memory Bandwidth - Coalesced Read
+    {
+        cl_kernel kernel = g_ocl.clCreateKernel(program, "kernel_coalesced_read", nullptr);
+        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buffer);
+        size_t global = N, local = 256;
+        
+        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
+        g_ocl.clFinish(queue);
+        
+        double min_time = 1e30;
+        for (int i = 0; i < N_kernel; i++) {
+            auto start = std::chrono::high_resolution_clock::now();
+            g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
+            g_ocl.clFinish(queue);
+            auto end = std::chrono::high_resolution_clock::now();
+            min_time = std::min(min_time, std::chrono::duration<double, std::milli>(end - start).count());
+        }
+        float bw = 4.0f * N * M / (float)min_time * 1e-9f;
+        std::cout << "| Memory Bandwidth (coalesced read )                     " 
+                  << alignr(18, formatFloat(bw, 2)) << " GB/s |" << std::endl;
+        g_ocl.clReleaseKernel(kernel);
+    }
+
+    // Memory Bandwidth - Misaligned Write
+    {
+        cl_kernel kernel = g_ocl.clCreateKernel(program, "kernel_misaligned_write", nullptr);
+        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buffer);
+        size_t global = N, local = 256;
+        
+        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
+        g_ocl.clFinish(queue);
+        
+        double min_time = 1e30;
+        for (int i = 0; i < N_kernel; i++) {
+            auto start = std::chrono::high_resolution_clock::now();
+            g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
+            g_ocl.clFinish(queue);
+            auto end = std::chrono::high_resolution_clock::now();
+            min_time = std::min(min_time, std::chrono::duration<double, std::milli>(end - start).count());
+        }
+        float bw = 4.0f * N * M / (float)min_time * 1e-9f;
+        std::cout << "| Memory Bandwidth (misaligned write)                    " 
+                  << alignr(18, formatFloat(bw, 2)) << " GB/s |" << std::endl;
+        g_ocl.clReleaseKernel(kernel);
+    }
+
+    // Memory Bandwidth - Misaligned Read
+    {
+        cl_kernel kernel = g_ocl.clCreateKernel(program, "kernel_misaligned_read", nullptr);
+        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buffer);
+        size_t global = N, local = 256;
+        
+        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
+        g_ocl.clFinish(queue);
+        
+        double min_time = 1e30;
+        for (int i = 0; i < N_kernel; i++) {
+            auto start = std::chrono::high_resolution_clock::now();
+            g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
+            g_ocl.clFinish(queue);
+            auto end = std::chrono::high_resolution_clock::now();
+            min_time = std::min(min_time, std::chrono::duration<double, std::milli>(end - start).count());
+        }
+        float bw = 4.0f * N * M / (float)min_time * 1e-9f;
+        std::cout << "| Memory Bandwidth (misaligned read )                    " 
+                  << alignr(18, formatFloat(bw, 2)) << " GB/s |" << std::endl;
+        g_ocl.clReleaseKernel(kernel);
+    }
+
+    std::cout << "'-----------------------------------------------------------------------------'" << std::endl;
 
     // Cleanup
+    g_ocl.clReleaseMemObject(buffer);
     g_ocl.clReleaseProgram(program);
     g_ocl.clReleaseCommandQueue(queue);
     g_ocl.clReleaseContext(context);
-
-    std::cout << "\n==============================================" << std::endl;
-    std::cout << "  Benchmark completed!" << std::endl;
-    std::cout << "  Tests passed: " << tests_passed << "/" << tests_total << std::endl;
-    std::cout << "==============================================" << std::endl;
 
     return 0;
 }

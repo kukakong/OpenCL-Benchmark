@@ -456,8 +456,14 @@ int main() {
     bool has_fp64 = hasExtension(dev_extensions, "cl_khr_fp64") || hasExtension(dev_extensions, "cl_amd_fp64");
     bool has_fp16 = hasExtension(dev_extensions, "cl_khr_fp16") || hasExtension(dev_extensions, "cl_amd_fp16");
 
-    // Estimate peak performance (very rough)
-    float estimated_tflops = (float)compute_units * (float)max_freq * 0.001f * 0.064f; // rough estimate
+    // Estimate peak performance (matching original code)
+    // cores = compute_units * cores_per_cu (ARM GPU: 8 cores/CU)
+    // ipc = 2 for GPU, 32 for CPU
+    // tflops = 1e-6 * cores * ipc * clock_frequency
+    float cores_per_cu = 8.0f;  // ARM GPU
+    float ipc = 2.0f;          // GPU IPC
+    uint cores = (uint)((float)compute_units * cores_per_cu);
+    float estimated_tflops = 1e-6f * (float)cores * ipc * (float)max_freq;
 
     std::cout << std::endl;
     std::cout << ".-----------------------------------------------------------------------------." << std::endl;
@@ -492,7 +498,7 @@ int main() {
 
     // Calculate benchmark parameters first (before building program)
     const size_t M = 16;     // coalescence size
-    const int N_kernel = 256; // iterations for kernel calls (original uses 256)
+    const int N_kernel = 64; // iterations for kernel calls (reduced from 256 for faster execution)
     
     // Calculate N based on available memory (similar to original)
     // memory_allocation_size = min(1024, max_global_buffer) in MB
@@ -549,28 +555,27 @@ int main() {
         }
         g_ocl.clFinish(queue);
 
-        // Benchmark - run multiple times and sum for better precision
-        auto start = std::chrono::high_resolution_clock::now();
+        // Benchmark - use minimum time (matching original code)
+        double min_time_sec = 1e30;
         for (int i = 0; i < N_kernel; i++) {
+            auto start = std::chrono::high_resolution_clock::now();
             g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, &local_size, 0, nullptr, nullptr);
+            g_ocl.clFinish(queue);
+            auto end = std::chrono::high_resolution_clock::now();
+            double time_sec = std::chrono::duration<double>(end - start).count(); // seconds
+            min_time_sec = std::min(min_time_sec, time_sec);
         }
-        g_ocl.clFinish(queue);
-        auto end = std::chrono::high_resolution_clock::now();
-        
-        double total_time_ms = std::chrono::duration<double, std::milli>(end - start).count();
-        double avg_time_ms = total_time_ms / N_kernel;
 
         g_ocl.clReleaseKernel(kernel);
-        return avg_time_ms;
+        return min_time_sec;
     };
 
     // FP64 Compute
     if (has_fp64) {
-        double time_ms = benchmark_kernel("kernel_double", 512, 128);
-        if (time_ms < 1e20 && time_ms > 0) {
+        double time_sec = benchmark_kernel("kernel_double", 512, 128);
+        if (time_sec < 1e20 && time_sec > 0) {
             // TFLOPS = ops_per_iter * N / time_seconds / 1e12
-            // time_ms is in milliseconds, so: TFLOPS = ops_per_iter * N / (time_ms/1000) / 1e12
-            float tflops = 512.0f * (float)N / (float)time_ms * 1e-9f;
+            float tflops = 512.0f * (float)N / (float)time_sec * 1e-12f;
             std::cout << "| FP64  compute                                          " 
                       << alignr(15, formatFloat(tflops, 3)) << " TFLOPs/s " << fraction(100.0f*tflops/estimated_tflops) << " |" << std::endl;
         }
@@ -580,9 +585,9 @@ int main() {
 
     // FP32 Compute
     {
-        double time_ms = benchmark_kernel("kernel_float", 2048, 512);
-        if (time_ms < 1e20 && time_ms > 0) {
-            float tflops = 2048.0f * (float)N / (float)time_ms * 1e-9f;
+        double time_sec = benchmark_kernel("kernel_float", 2048, 512);
+        if (time_sec < 1e20 && time_sec > 0) {
+            float tflops = 2048.0f * (float)N / (float)time_sec * 1e-12f;
             std::cout << "| FP32  compute                                          " 
                       << alignr(15, formatFloat(tflops, 3)) << " TFLOPs/s " << fraction(100.0f*tflops/estimated_tflops) << " |" << std::endl;
         }
@@ -590,9 +595,9 @@ int main() {
 
     // FP16 Compute
     if (has_fp16) {
-        double time_ms = benchmark_kernel("kernel_half", 4096, 512);
-        if (time_ms < 1e20 && time_ms > 0) {
-            float tflops = 4096.0f * (float)N / (float)time_ms * 1e-9f;
+        double time_sec = benchmark_kernel("kernel_half", 4096, 512);
+        if (time_sec < 1e20 && time_sec > 0) {
+            float tflops = 4096.0f * (float)N / (float)time_sec * 1e-12f;
             std::cout << "| FP16  compute                                          " 
                       << alignr(15, formatFloat(tflops, 3)) << " TFLOPs/s " << fraction(100.0f*tflops/estimated_tflops) << " |" << std::endl;
         }
@@ -602,9 +607,9 @@ int main() {
 
     // INT64 Compute
     {
-        double time_ms = benchmark_kernel("kernel_long", 32, 8);
-        if (time_ms < 1e20 && time_ms > 0) {
-            float tiops = 32.0f * (float)N / (float)time_ms * 1e-9f;
+        double time_sec = benchmark_kernel("kernel_long", 32, 8);
+        if (time_sec < 1e20 && time_sec > 0) {
+            float tiops = 32.0f * (float)N / (float)time_sec * 1e-12f;
             std::cout << "| INT64 compute                                          " 
                       << alignr(15, formatFloat(tiops, 3)) << "  TIOPs/s " << fraction(100.0f*tiops/estimated_tflops) << " |" << std::endl;
         }
@@ -612,9 +617,9 @@ int main() {
 
     // INT32 Compute
     {
-        double time_ms = benchmark_kernel("kernel_int", 2048, 512);
-        if (time_ms < 1e20 && time_ms > 0) {
-            float tiops = 2048.0f * (float)N / (float)time_ms * 1e-9f;
+        double time_sec = benchmark_kernel("kernel_int", 2048, 512);
+        if (time_sec < 1e20 && time_sec > 0) {
+            float tiops = 2048.0f * (float)N / (float)time_sec * 1e-12f;
             std::cout << "| INT32 compute                                          " 
                       << alignr(15, formatFloat(tiops, 3)) << "  TIOPs/s " << fraction(100.0f*tiops/estimated_tflops) << " |" << std::endl;
         }
@@ -622,9 +627,9 @@ int main() {
 
     // INT16 Compute
     {
-        double time_ms = benchmark_kernel("kernel_short", 1024, 128);
-        if (time_ms < 1e20 && time_ms > 0) {
-            float tiops = 1024.0f * (float)N / (float)time_ms * 1e-9f;
+        double time_sec = benchmark_kernel("kernel_short", 1024, 128);
+        if (time_sec < 1e20 && time_sec > 0) {
+            float tiops = 1024.0f * (float)N / (float)time_sec * 1e-12f;
             std::cout << "| INT16 compute                                          " 
                       << alignr(15, formatFloat(tiops, 4)) << "  TIOPs/s " << fraction(100.0f*tiops/estimated_tflops) << " |" << std::endl;
         }
@@ -632,9 +637,9 @@ int main() {
 
     // INT8 Compute
     {
-        double time_ms = benchmark_kernel("kernel_char", 1024, 64);
-        if (time_ms < 1e20 && time_ms > 0) {
-            float tiops = 1024.0f * (float)N / (float)time_ms * 1e-9f;
+        double time_sec = benchmark_kernel("kernel_char", 1024, 64);
+        if (time_sec < 1e20 && time_sec > 0) {
+            float tiops = 1024.0f * (float)N / (float)time_sec * 1e-12f;
             std::cout << "| INT8  compute                                          " 
                       << alignr(15, formatFloat(tiops, 4)) << "  TIOPs/s " << fraction(100.0f*tiops/estimated_tflops) << " |" << std::endl;
         }
@@ -649,16 +654,16 @@ int main() {
         g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
         g_ocl.clFinish(queue);
         
-        auto start = std::chrono::high_resolution_clock::now();
+        double min_time_sec = 1e30;
         for (int i = 0; i < N_kernel; i++) {
+            auto start = std::chrono::high_resolution_clock::now();
             g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
+            g_ocl.clFinish(queue);
+            auto end = std::chrono::high_resolution_clock::now();
+            min_time_sec = std::min(min_time_sec, std::chrono::duration<double>(end - start).count());
         }
-        g_ocl.clFinish(queue);
-        auto end = std::chrono::high_resolution_clock::now();
-        double total_time_ms = std::chrono::duration<double, std::milli>(end - start).count();
-        double avg_time_ms = total_time_ms / N_kernel;
-        // BW = bytes / time_seconds / 1e9 = 4 * N * M / (avg_time_ms/1000) / 1e9 = 4 * N * M / avg_time_ms * 1e-6
-        float bw = 4.0f * N * M / (float)avg_time_ms * 1e-6f;
+        // BW = 4 * N * M bytes / time_seconds / 1e9
+        float bw = 4.0f * N * M / (float)min_time_sec * 1e-9f;
         std::cout << "| Memory Bandwidth (coalesced write)                     " 
                   << alignr(18, formatFloat(bw, 2)) << " GB/s |" << std::endl;
         g_ocl.clReleaseKernel(kernel);
@@ -673,15 +678,15 @@ int main() {
         g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
         g_ocl.clFinish(queue);
         
-        auto start = std::chrono::high_resolution_clock::now();
+        double min_time_sec = 1e30;
         for (int i = 0; i < N_kernel; i++) {
+            auto start = std::chrono::high_resolution_clock::now();
             g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
+            g_ocl.clFinish(queue);
+            auto end = std::chrono::high_resolution_clock::now();
+            min_time_sec = std::min(min_time_sec, std::chrono::duration<double>(end - start).count());
         }
-        g_ocl.clFinish(queue);
-        auto end = std::chrono::high_resolution_clock::now();
-        double total_time_ms = std::chrono::duration<double, std::milli>(end - start).count();
-        double avg_time_ms = total_time_ms / N_kernel;
-        float bw = 4.0f * N * M / (float)avg_time_ms * 1e-6f;
+        float bw = 4.0f * N * M / (float)min_time_sec * 1e-9f;
         std::cout << "| Memory Bandwidth (coalesced read )                     " 
                   << alignr(18, formatFloat(bw, 2)) << " GB/s |" << std::endl;
         g_ocl.clReleaseKernel(kernel);
@@ -696,15 +701,15 @@ int main() {
         g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
         g_ocl.clFinish(queue);
         
-        auto start = std::chrono::high_resolution_clock::now();
+        double min_time_sec = 1e30;
         for (int i = 0; i < N_kernel; i++) {
+            auto start = std::chrono::high_resolution_clock::now();
             g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
+            g_ocl.clFinish(queue);
+            auto end = std::chrono::high_resolution_clock::now();
+            min_time_sec = std::min(min_time_sec, std::chrono::duration<double>(end - start).count());
         }
-        g_ocl.clFinish(queue);
-        auto end = std::chrono::high_resolution_clock::now();
-        double total_time_ms = std::chrono::duration<double, std::milli>(end - start).count();
-        double avg_time_ms = total_time_ms / N_kernel;
-        float bw = 4.0f * N * M / (float)avg_time_ms * 1e-6f;
+        float bw = 4.0f * N * M / (float)min_time_sec * 1e-9f;
         std::cout << "| Memory Bandwidth (misaligned write)                    " 
                   << alignr(18, formatFloat(bw, 2)) << " GB/s |" << std::endl;
         g_ocl.clReleaseKernel(kernel);
@@ -719,15 +724,15 @@ int main() {
         g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
         g_ocl.clFinish(queue);
         
-        auto start = std::chrono::high_resolution_clock::now();
+        double min_time_sec = 1e30;
         for (int i = 0; i < N_kernel; i++) {
+            auto start = std::chrono::high_resolution_clock::now();
             g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global, &local, 0, nullptr, nullptr);
+            g_ocl.clFinish(queue);
+            auto end = std::chrono::high_resolution_clock::now();
+            min_time_sec = std::min(min_time_sec, std::chrono::duration<double>(end - start).count());
         }
-        g_ocl.clFinish(queue);
-        auto end = std::chrono::high_resolution_clock::now();
-        double total_time_ms = std::chrono::duration<double, std::milli>(end - start).count();
-        double avg_time_ms = total_time_ms / N_kernel;
-        float bw = 4.0f * N * M / (float)avg_time_ms * 1e-6f;
+        float bw = 4.0f * N * M / (float)min_time_sec * 1e-9f;
         std::cout << "| Memory Bandwidth (misaligned read )                    " 
                   << alignr(18, formatFloat(bw, 2)) << " GB/s |" << std::endl;
         g_ocl.clReleaseKernel(kernel);

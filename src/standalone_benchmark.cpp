@@ -77,6 +77,7 @@ static const cl_device_info CL_DEVICE_LOCAL_MEM_SIZE = 0x1023;
 static const cl_device_info CL_DEVICE_MAX_WORK_GROUP_SIZE = 0x1004;
 static const cl_device_info CL_DEVICE_OPENCL_C_VERSION = 0x103D;
 static const cl_device_info CL_DEVICE_PREFERRED_VECTOR_WIDTH_FLOAT = 0x103A;
+static const cl_device_info CL_DEVICE_NATIVE_VECTOR_WIDTH_HALF = 0x103B;
 static const cl_device_info CL_DEVICE_PROFILING_TIMER_RESOLUTION = 0x1028;
 
 // Build info
@@ -452,9 +453,11 @@ int main() {
     cl_ulong global_mem = getDeviceULong(gpu_device, CL_DEVICE_GLOBAL_MEM_SIZE);
     size_t max_wg_size = getDeviceSizeT(gpu_device, CL_DEVICE_MAX_WORK_GROUP_SIZE);
 
-    // Check FP64/FP16 support
+    // Check FP64/FP16 support (matching original code)
     bool has_fp64 = hasExtension(dev_extensions, "cl_khr_fp64") || hasExtension(dev_extensions, "cl_amd_fp64");
-    bool has_fp16 = hasExtension(dev_extensions, "cl_khr_fp16") || hasExtension(dev_extensions, "cl_amd_fp16");
+    // FP16: check both extension and native vector width (matching original)
+    cl_uint native_vector_width_half = getDeviceUInt(gpu_device, CL_DEVICE_NATIVE_VECTOR_WIDTH_HALF);
+    bool has_fp16 = (native_vector_width_half > 0) && hasExtension(dev_extensions, "cl_khr_fp16");
 
     // Estimate peak performance (matching original code)
     // cores = compute_units * cores_per_cu (ARM GPU: 8 cores/CU)

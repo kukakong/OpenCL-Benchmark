@@ -201,10 +201,8 @@ static OpenCLDynamic g_ocl;
 // ============================================================
 // OpenCL Kernel Code (Comprehensive Benchmark)
 // ============================================================
+// Note: def_N and def_M will be defined dynamically via build options
 static const char* kernel_code = R"(
-#define def_N 262144u
-#define def_M 16u
-
 // FP64 (double precision) - requires cl_khr_fp64
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
@@ -492,13 +490,29 @@ int main() {
         return 1;
     }
 
+    // Calculate benchmark parameters first (before building program)
+    const size_t M = 16;     // coalescence size
+    const int N_kernel = 256; // iterations for kernel calls (original uses 256)
+    
+    // Calculate N based on available memory (similar to original)
+    // memory_allocation_size = min(1024, max_global_buffer) in MB
+    // N = memory_allocation_size * 1048576 / (M * sizeof(float))
+    size_t memory_mb = std::min((size_t)1024, (size_t)(global_mem / (1024 * 1024)));
+    const size_t N = memory_mb * 1048576u / (M * sizeof(float));
+    
+    std::cout << "Benchmark config: N=" << N << ", M=" << M << ", iterations=" << N_kernel << std::endl;
+
+    // Build program with dynamic defines
+    std::string build_options = "-Ddef_N=" + std::to_string(N) + "u -Ddef_M=" + std::to_string(M) + "u";
+    
     // Create and build program
     cl_program program = g_ocl.clCreateProgramWithSource(context, 1, &kernel_code, nullptr, nullptr);
-    cl_int err = g_ocl.clBuildProgram(program, 1, &gpu_device, nullptr, nullptr, nullptr);
+    cl_int err = g_ocl.clBuildProgram(program, 1, &gpu_device, build_options.c_str(), nullptr, nullptr);
     if (err != CL_SUCCESS) {
         char log[8192] = {0};
         g_ocl.clGetProgramBuildInfo(program, gpu_device, CL_PROGRAM_BUILD_LOG, sizeof(log), log, nullptr);
         std::cerr << "Build failed: " << err << std::endl;
+        std::cerr << "Build options: " << build_options << std::endl;
         std::cerr << "Log: " << log << std::endl;
         g_ocl.clReleaseProgram(program);
         g_ocl.clReleaseCommandQueue(queue);
@@ -508,11 +522,6 @@ int main() {
 
     std::cout << ".-----------------------------------------------------------------------------." << std::endl;
     std::cout << "| Info: OpenCL C code successfully compiled.                                  |" << std::endl;
-
-    // Benchmark parameters
-    const size_t N = 262144; // kernel range
-    const size_t M = 16;     // coalescence size
-    const int N_kernel = 16; // iterations
 
     // Allocate buffer
     std::vector<float> data(N * M, 0.0f);

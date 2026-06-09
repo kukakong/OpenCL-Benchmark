@@ -245,11 +245,13 @@ static OpenCLDynamic g_ocl;
 // OpenCL Kernel Code
 // ============================================================
 static const char* kernel_code = R"(
+// Test 1: Vector Addition
 __kernel void test_add(__global float* a, __global float* b, __global float* c, int n) {
     int i = get_global_id(0);
     if (i < n) c[i] = a[i] + b[i];
 }
 
+// Test 2: Compute Benchmark
 __kernel void benchmark_compute(__global float* data, int n, int iters) {
     int i = get_global_id(0);
     if (i >= n) return;
@@ -258,6 +260,103 @@ __kernel void benchmark_compute(__global float* data, int n, int iters) {
         v = v * 1.01f + 0.5f;
     }
     data[i] = v;
+}
+
+// Test 3: Memory Bandwidth (Read/Write)
+__kernel void mem_bandwidth(__global float* src, __global float* dst, int n) {
+    int i = get_global_id(0);
+    if (i < n) {
+        dst[i] = src[i];
+    }
+}
+
+// Test 4: Matrix Multiplication (Naive)
+__kernel void matrix_mul(__global float* A, __global float* B, __global float* C, int N) {
+    int row = get_global_id(0);
+    int col = get_global_id(1);
+    if (row < N && col < N) {
+        float sum = 0.0f;
+        for (int k = 0; k < N; k++) {
+            sum += A[row * N + k] * B[k * N + col];
+        }
+        C[row * N + col] = sum;
+    }
+}
+
+// Test 5: Local Memory Test
+__kernel void local_mem_test(__global float* input, __global float* output, int n) {
+    __local float local_data[256];
+    int lid = get_local_id(0);
+    int gid = get_global_id(0);
+    
+    if (gid < n) {
+        local_data[lid] = input[gid];
+        barrier(CLK_LOCAL_MEM_FENCE);
+        
+        // Simple reduction
+        float sum = 0.0f;
+        for (int i = 0; i < 256; i++) {
+            sum += local_data[i];
+        }
+        output[gid] = sum / 256.0f;
+    }
+}
+
+// Test 6: Integer Operations
+__kernel void int_operations(__global int* a, __global int* b, __global int* c, int n) {
+    int i = get_global_id(0);
+    if (i < n) {
+        c[i] = a[i] * b[i] + a[i] - b[i];
+    }
+}
+
+// Test 7: Mixed Precision (Float + Double if supported)
+__kernel void mixed_ops(__global float* a, __global float* b, __global float* c, int n) {
+    int i = get_global_id(0);
+    if (i < n) {
+        float v = a[i];
+        v = v * v + b[i];
+        v = sqrt(v);
+        v = sin(v) + cos(v);
+        c[i] = v;
+    }
+}
+
+// Test 8: Atomic Operations
+__kernel void atomic_test(__global int* counter, int n) {
+    int i = get_global_id(0);
+    if (i < n) {
+        atomic_inc(counter);
+    }
+}
+
+// Test 9: Parallel Reduction
+__kernel void parallel_reduction(__global float* input, __global float* partial_sums, int n, __local float* temp) {
+    int lid = get_local_id(0);
+    int gid = get_global_id(0);
+    int lsize = get_local_size(0);
+    
+    temp[lid] = (gid < n) ? input[gid] : 0.0f;
+    barrier(CLK_LOCAL_MEM_FENCE);
+    
+    for (int stride = lsize / 2; stride > 0; stride /= 2) {
+        if (lid < stride) {
+            temp[lid] += temp[lid + stride];
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+    
+    if (lid == 0) {
+        partial_sums[get_group_id(0)] = temp[0];
+    }
+}
+
+// Test 10: Vector Types
+__kernel void vector_types(__global float4* a, __global float4* b, __global float4* c, int n) {
+    int i = get_global_id(0);
+    if (i < n) {
+        c[i] = a[i] + b[i];
+    }
 }
 )";
 
@@ -413,9 +512,14 @@ int main() {
     }
     std::cout << "Program compiled successfully!" << std::endl;
 
+    // Track test results
+    int tests_passed = 0;
+    int tests_total = 0;
+
     // Test 1: Simple vector add
     {
-        std::cout << "\n--- Test 1: Vector Add ---" << std::endl;
+        std::cout << "\n--- Test 1: Vector Addition ---" << std::endl;
+        tests_total++;
         const size_t N = 1024;
         std::vector<float> a(N, 1.0f), b(N, 2.0f), c(N, 0.0f);
 
@@ -440,13 +544,10 @@ int main() {
 
         bool correct = true;
         for (size_t i = 0; i < N; i++) {
-            if (std::fabs(c[i] - 3.0f) > 0.001f) {
-                correct = false;
-                break;
-            }
+            if (std::fabs(c[i] - 3.0f) > 0.001f) { correct = false; break; }
         }
         std::cout << "  Result: " << (correct ? "PASSED" : "FAILED") << std::endl;
-        std::cout << "  c[0] = " << c[0] << ", c[100] = " << c[100] << std::endl;
+        if (correct) tests_passed++;
 
         g_ocl.clReleaseKernel(kernel);
         g_ocl.clReleaseMemObject(buf_a);
@@ -457,6 +558,7 @@ int main() {
     // Test 2: Compute benchmark
     {
         std::cout << "\n--- Test 2: Compute Benchmark ---" << std::endl;
+        tests_total++;
         const size_t N = 1024 * 1024;
         const int iters = 100;
 
@@ -486,10 +588,312 @@ int main() {
         double time_ms = std::chrono::duration<double, std::milli>(end - start).count() / 10.0;
         double gflops = (double)N * iters * 2 / (time_ms * 1e6);
         std::cout << "  Time: " << std::fixed << std::setprecision(3) << time_ms << " ms" << std::endl;
-        std::cout << "  Performance: " << gflops << " GFLOPS" << std::endl;
+        std::cout << "  Performance: " << std::setprecision(2) << gflops << " GFLOPS" << std::endl;
+        tests_passed++;
 
         g_ocl.clReleaseKernel(kernel);
         g_ocl.clReleaseMemObject(buf);
+    }
+
+    // Test 3: Memory Bandwidth
+    {
+        std::cout << "\n--- Test 3: Memory Bandwidth ---" << std::endl;
+        tests_total++;
+        const size_t N = 4 * 1024 * 1024; // 4M elements = 16MB
+
+        std::vector<float> src(N, 1.0f), dst(N, 0.0f);
+        cl_mem buf_src = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
+                                              N * sizeof(float), src.data(), nullptr);
+        cl_mem buf_dst = g_ocl.clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+                                              N * sizeof(float), nullptr, nullptr);
+
+        cl_kernel kernel = g_ocl.clCreateKernel(program, "mem_bandwidth", nullptr);
+        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buf_src);
+        g_ocl.clSetKernelArg(kernel, 1, sizeof(cl_mem), &buf_dst);
+        int n_val = (int)N;
+        g_ocl.clSetKernelArg(kernel, 2, sizeof(int), &n_val);
+
+        // Warmup
+        size_t global_size = N;
+        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, nullptr, 0, nullptr, nullptr);
+        g_ocl.clFinish(queue);
+
+        // Benchmark
+        auto start = std::chrono::high_resolution_clock::now();
+        for (int i = 0; i < 10; i++) {
+            g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, nullptr, 0, nullptr, nullptr);
+        }
+        g_ocl.clFinish(queue);
+        auto end = std::chrono::high_resolution_clock::now();
+
+        double time_ms = std::chrono::duration<double, std::milli>(end - start).count() / 10.0;
+        double bandwidth = (double)N * sizeof(float) * 2 / (time_ms * 1e6); // Read + Write
+        std::cout << "  Time: " << std::fixed << std::setprecision(3) << time_ms << " ms" << std::endl;
+        std::cout << "  Bandwidth: " << std::setprecision(2) << bandwidth << " GB/s" << std::endl;
+        tests_passed++;
+
+        g_ocl.clReleaseKernel(kernel);
+        g_ocl.clReleaseMemObject(buf_src);
+        g_ocl.clReleaseMemObject(buf_dst);
+    }
+
+    // Test 4: Matrix Multiplication
+    {
+        std::cout << "\n--- Test 4: Matrix Multiplication (64x64) ---" << std::endl;
+        tests_total++;
+        const int N = 64;
+        std::vector<float> A(N * N, 1.0f), B(N * N, 2.0f), C(N * N, 0.0f);
+
+        cl_mem buf_A = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
+                                            N * N * sizeof(float), A.data(), nullptr);
+        cl_mem buf_B = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
+                                            N * N * sizeof(float), B.data(), nullptr);
+        cl_mem buf_C = g_ocl.clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+                                            N * N * sizeof(float), nullptr, nullptr);
+
+        cl_kernel kernel = g_ocl.clCreateKernel(program, "matrix_mul", nullptr);
+        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buf_A);
+        g_ocl.clSetKernelArg(kernel, 1, sizeof(cl_mem), &buf_B);
+        g_ocl.clSetKernelArg(kernel, 2, sizeof(cl_mem), &buf_C);
+        g_ocl.clSetKernelArg(kernel, 3, sizeof(int), &N);
+
+        size_t global[2] = {(size_t)N, (size_t)N};
+        auto start = std::chrono::high_resolution_clock::now();
+        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 2, nullptr, global, nullptr, 0, nullptr, nullptr);
+        g_ocl.clFinish(queue);
+        auto end = std::chrono::high_resolution_clock::now();
+
+        g_ocl.clEnqueueReadBuffer(queue, buf_C, CL_TRUE, 0, N * N * sizeof(float), C.data(), 0, nullptr, nullptr);
+
+        double time_ms = std::chrono::duration<double, std::milli>(end - start).count();
+        // Expected: C[i][j] = sum(A[i][k] * B[k][j]) = N * 1.0 * 2.0 = 2N = 128
+        bool correct = std::fabs(C[0] - 128.0f) < 0.001f;
+        std::cout << "  Time: " << std::fixed << std::setprecision(3) << time_ms << " ms" << std::endl;
+        std::cout << "  Result: " << (correct ? "PASSED" : "FAILED") << " (C[0]=" << C[0] << ", expected=128)" << std::endl;
+        if (correct) tests_passed++;
+
+        g_ocl.clReleaseKernel(kernel);
+        g_ocl.clReleaseMemObject(buf_A);
+        g_ocl.clReleaseMemObject(buf_B);
+        g_ocl.clReleaseMemObject(buf_C);
+    }
+
+    // Test 5: Local Memory
+    {
+        std::cout << "\n--- Test 5: Local Memory Test ---" << std::endl;
+        tests_total++;
+        const size_t N = 256 * 4; // 4 workgroups
+        std::vector<float> input(N, 2.0f), output(N, 0.0f);
+
+        cl_mem buf_in = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
+                                             N * sizeof(float), input.data(), nullptr);
+        cl_mem buf_out = g_ocl.clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+                                              N * sizeof(float), nullptr, nullptr);
+
+        cl_kernel kernel = g_ocl.clCreateKernel(program, "local_mem_test", nullptr);
+        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buf_in);
+        g_ocl.clSetKernelArg(kernel, 1, sizeof(cl_mem), &buf_out);
+        int n_val = (int)N;
+        g_ocl.clSetKernelArg(kernel, 2, sizeof(int), &n_val);
+
+        size_t global_size = N;
+        size_t local_size = 256;
+        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, &local_size, 0, nullptr, nullptr);
+        g_ocl.clFinish(queue);
+        g_ocl.clEnqueueReadBuffer(queue, buf_out, CL_TRUE, 0, N * sizeof(float), output.data(), 0, nullptr, nullptr);
+
+        // Each output should be average of 256 elements = 2.0
+        bool correct = std::fabs(output[0] - 2.0f) < 0.001f;
+        std::cout << "  Result: " << (correct ? "PASSED" : "FAILED") << " (output[0]=" << output[0] << ", expected=2.0)" << std::endl;
+        if (correct) tests_passed++;
+
+        g_ocl.clReleaseKernel(kernel);
+        g_ocl.clReleaseMemObject(buf_in);
+        g_ocl.clReleaseMemObject(buf_out);
+    }
+
+    // Test 6: Integer Operations
+    {
+        std::cout << "\n--- Test 6: Integer Operations ---" << std::endl;
+        tests_total++;
+        const size_t N = 1024;
+        std::vector<int> a(N, 10), b(N, 3), c(N, 0);
+
+        cl_mem buf_a = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
+                                            N * sizeof(int), a.data(), nullptr);
+        cl_mem buf_b = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
+                                            N * sizeof(int), b.data(), nullptr);
+        cl_mem buf_c = g_ocl.clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+                                            N * sizeof(int), nullptr, nullptr);
+
+        cl_kernel kernel = g_ocl.clCreateKernel(program, "int_operations", nullptr);
+        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buf_a);
+        g_ocl.clSetKernelArg(kernel, 1, sizeof(cl_mem), &buf_b);
+        g_ocl.clSetKernelArg(kernel, 2, sizeof(cl_mem), &buf_c);
+        int n_val = (int)N;
+        g_ocl.clSetKernelArg(kernel, 3, sizeof(int), &n_val);
+
+        size_t global_size = N;
+        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, nullptr, 0, nullptr, nullptr);
+        g_ocl.clFinish(queue);
+        g_ocl.clEnqueueReadBuffer(queue, buf_c, CL_TRUE, 0, N * sizeof(int), c.data(), 0, nullptr, nullptr);
+
+        // Expected: c = a * b + a - b = 10 * 3 + 10 - 3 = 37
+        bool correct = c[0] == 37;
+        std::cout << "  Result: " << (correct ? "PASSED" : "FAILED") << " (c[0]=" << c[0] << ", expected=37)" << std::endl;
+        if (correct) tests_passed++;
+
+        g_ocl.clReleaseKernel(kernel);
+        g_ocl.clReleaseMemObject(buf_a);
+        g_ocl.clReleaseMemObject(buf_b);
+        g_ocl.clReleaseMemObject(buf_c);
+    }
+
+    // Test 7: Mixed Precision (Math Functions)
+    {
+        std::cout << "\n--- Test 7: Math Functions (sin/cos/sqrt) ---" << std::endl;
+        tests_total++;
+        const size_t N = 1024;
+        std::vector<float> a(N, 1.0f), b(N, 0.0f), c(N, 0.0f);
+
+        cl_mem buf_a = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
+                                            N * sizeof(float), a.data(), nullptr);
+        cl_mem buf_b = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
+                                            N * sizeof(float), b.data(), nullptr);
+        cl_mem buf_c = g_ocl.clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+                                            N * sizeof(float), nullptr, nullptr);
+
+        cl_kernel kernel = g_ocl.clCreateKernel(program, "mixed_ops", nullptr);
+        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buf_a);
+        g_ocl.clSetKernelArg(kernel, 1, sizeof(cl_mem), &buf_b);
+        g_ocl.clSetKernelArg(kernel, 2, sizeof(cl_mem), &buf_c);
+        int n_val = (int)N;
+        g_ocl.clSetKernelArg(kernel, 3, sizeof(int), &n_val);
+
+        size_t global_size = N;
+        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, nullptr, 0, nullptr, nullptr);
+        g_ocl.clFinish(queue);
+        g_ocl.clEnqueueReadBuffer(queue, buf_c, CL_TRUE, 0, N * sizeof(float), c.data(), 0, nullptr, nullptr);
+
+        // v = 1.0, v = 1.0*1.0 + 0 = 1.0, v = sqrt(1.0) = 1.0, v = sin(1.0) + cos(1.0) ≈ 1.38
+        float expected = std::sin(1.0f) + std::cos(1.0f);
+        bool correct = std::fabs(c[0] - expected) < 0.01f;
+        std::cout << "  Result: " << (correct ? "PASSED" : "FAILED") << " (c[0]=" << c[0] << ", expected=" << expected << ")" << std::endl;
+        if (correct) tests_passed++;
+
+        g_ocl.clReleaseKernel(kernel);
+        g_ocl.clReleaseMemObject(buf_a);
+        g_ocl.clReleaseMemObject(buf_b);
+        g_ocl.clReleaseMemObject(buf_c);
+    }
+
+    // Test 8: Atomic Operations
+    {
+        std::cout << "\n--- Test 8: Atomic Operations ---" << std::endl;
+        tests_total++;
+        const size_t N = 10000;
+        int counter_init = 0;
+        std::vector<int> counter(1, 0);
+
+        cl_mem buf_counter = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_WRITE,
+                                                  sizeof(int), counter.data(), nullptr);
+
+        cl_kernel kernel = g_ocl.clCreateKernel(program, "atomic_test", nullptr);
+        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buf_counter);
+        int n_val = (int)N;
+        g_ocl.clSetKernelArg(kernel, 1, sizeof(int), &n_val);
+
+        size_t global_size = N;
+        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, nullptr, 0, nullptr, nullptr);
+        g_ocl.clFinish(queue);
+        g_ocl.clEnqueueReadBuffer(queue, buf_counter, CL_TRUE, 0, sizeof(int), counter.data(), 0, nullptr, nullptr);
+
+        bool correct = counter[0] == (int)N;
+        std::cout << "  Result: " << (correct ? "PASSED" : "FAILED") << " (counter=" << counter[0] << ", expected=" << N << ")" << std::endl;
+        if (correct) tests_passed++;
+
+        g_ocl.clReleaseKernel(kernel);
+        g_ocl.clReleaseMemObject(buf_counter);
+    }
+
+    // Test 9: Parallel Reduction
+    {
+        std::cout << "\n--- Test 9: Parallel Reduction ---" << std::endl;
+        tests_total++;
+        const size_t N = 1024 * 1024;
+        const size_t local_size = 256;
+        const size_t num_groups = N / local_size;
+
+        std::vector<float> input(N, 1.0f);
+        std::vector<float> partial_sums(num_groups, 0.0f);
+
+        cl_mem buf_in = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
+                                             N * sizeof(float), input.data(), nullptr);
+        cl_mem buf_partial = g_ocl.clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+                                                  num_groups * sizeof(float), nullptr, nullptr);
+
+        cl_kernel kernel = g_ocl.clCreateKernel(program, "parallel_reduction", nullptr);
+        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buf_in);
+        g_ocl.clSetKernelArg(kernel, 1, sizeof(cl_mem), &buf_partial);
+        int n_val = (int)N;
+        g_ocl.clSetKernelArg(kernel, 2, sizeof(int), &n_val);
+        size_t local_mem_size = local_size * sizeof(float);
+        g_ocl.clSetKernelArg(kernel, 3, local_mem_size, nullptr);
+
+        size_t global_size = N;
+        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, &local_size, 0, nullptr, nullptr);
+        g_ocl.clFinish(queue);
+        g_ocl.clEnqueueReadBuffer(queue, buf_partial, CL_TRUE, 0, num_groups * sizeof(float), partial_sums.data(), 0, nullptr, nullptr);
+
+        // Sum all partial results
+        float total = 0.0f;
+        for (size_t i = 0; i < num_groups; i++) total += partial_sums[i];
+
+        float expected = (float)N;
+        bool correct = std::fabs(total - expected) < expected * 0.001f;
+        std::cout << "  Result: " << (correct ? "PASSED" : "FAILED") << " (sum=" << (long long)total << ", expected=" << (long long)expected << ")" << std::endl;
+        if (correct) tests_passed++;
+
+        g_ocl.clReleaseKernel(kernel);
+        g_ocl.clReleaseMemObject(buf_in);
+        g_ocl.clReleaseMemObject(buf_partial);
+    }
+
+    // Test 10: Vector Types (float4)
+    {
+        std::cout << "\n--- Test 10: Vector Types (float4) ---" << std::endl;
+        tests_total++;
+        const size_t N = 1024; // 1024 float4 vectors = 4096 floats
+        std::vector<float> a(N * 4, 1.0f), b(N * 4, 2.0f), c(N * 4, 0.0f);
+
+        cl_mem buf_a = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
+                                            N * 4 * sizeof(float), a.data(), nullptr);
+        cl_mem buf_b = g_ocl.clCreateBuffer(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
+                                            N * 4 * sizeof(float), b.data(), nullptr);
+        cl_mem buf_c = g_ocl.clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+                                            N * 4 * sizeof(float), nullptr, nullptr);
+
+        cl_kernel kernel = g_ocl.clCreateKernel(program, "vector_types", nullptr);
+        g_ocl.clSetKernelArg(kernel, 0, sizeof(cl_mem), &buf_a);
+        g_ocl.clSetKernelArg(kernel, 1, sizeof(cl_mem), &buf_b);
+        g_ocl.clSetKernelArg(kernel, 2, sizeof(cl_mem), &buf_c);
+        int n_val = (int)N;
+        g_ocl.clSetKernelArg(kernel, 3, sizeof(int), &n_val);
+
+        size_t global_size = N;
+        g_ocl.clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_size, nullptr, 0, nullptr, nullptr);
+        g_ocl.clFinish(queue);
+        g_ocl.clEnqueueReadBuffer(queue, buf_c, CL_TRUE, 0, N * 4 * sizeof(float), c.data(), 0, nullptr, nullptr);
+
+        // Expected: c = a + b = 1.0 + 2.0 = 3.0
+        bool correct = std::fabs(c[0] - 3.0f) < 0.001f;
+        std::cout << "  Result: " << (correct ? "PASSED" : "FAILED") << " (c[0]=" << c[0] << ", expected=3.0)" << std::endl;
+        if (correct) tests_passed++;
+
+        g_ocl.clReleaseKernel(kernel);
+        g_ocl.clReleaseMemObject(buf_a);
+        g_ocl.clReleaseMemObject(buf_b);
+        g_ocl.clReleaseMemObject(buf_c);
     }
 
     // Cleanup
@@ -499,6 +903,7 @@ int main() {
 
     std::cout << "\n==============================================" << std::endl;
     std::cout << "  Benchmark completed!" << std::endl;
+    std::cout << "  Tests passed: " << tests_passed << "/" << tests_total << std::endl;
     std::cout << "==============================================" << std::endl;
 
     return 0;
